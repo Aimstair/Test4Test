@@ -1,0 +1,1 @@
+ALTER TABLE public.apps ALTER COLUMN expires_at DROP NOT NULL;
