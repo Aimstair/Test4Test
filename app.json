@@ -46,6 +46,13 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "3b235b2c-08a1-41d0-9659-3e4a7f50b549"
+      }
+    },
+    "owner": "aimstair"
   }
 }

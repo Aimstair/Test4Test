@@ -182,7 +182,7 @@ export default function Onboarding() {
     <View style={styles.stepContainer}>
       <View style={styles.heroImageContainer}>
         <RNImage
-          source={require('../../assets/images/onboarding_1.png')}
+          source={require('../../assets/images/onboarding_1.jpg')}
           style={styles.heroImage}
           resizeMode="cover"
         />
@@ -336,7 +336,7 @@ export default function Onboarding() {
     <View style={styles.stepContainer}>
       <View style={styles.heroImageContainerAlt}>
         <RNImage
-          source={require('../../assets/images/onboarding_2.png')}
+          source={require('../../assets/images/onboarding_2.jpg')}
           style={styles.heroImage}
           resizeMode="cover"
         />
