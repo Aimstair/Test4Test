@@ -57,8 +57,7 @@ export default function Pricing() {
 
     // Fallback if RC not configured
     if (!process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_KEY || !rcPackageId) {
-      //  showAlert('Payment Unavailable', 'Payment gateway is not fully configured yet. Missing API Keys.');
-      showAlert('Payment Unavailable', 'Payment gateway will be available in production.');
+      showAlert('Payment Unavailable', 'Payment gateway is not fully configured yet. Missing API Keys.');
       return;
     }
 
@@ -445,13 +444,13 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontWeight: '800',
   },
   btnBlack: {
-    backgroundColor: colors.text,
+    backgroundColor: colors.primary,
     paddingVertical: 12,
     borderRadius: 8,
     alignItems: 'center',
   },
   btnTextWhite: {
-    color: colors.background,
+    color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '800',
   },

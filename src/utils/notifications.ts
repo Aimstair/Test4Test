@@ -113,36 +113,84 @@ export const setupDailyReminders = async (userId: string) => {
 
   // 1. Daily Reports for App Owners (9:00 AM)
   if (prefs['daily_reports'] !== false) {
-    const { count: activeApps } = await supabase.from('apps').select('id', { count: 'exact', head: true }).eq('owner_id', userId).eq('active', true);
-    if (activeApps && activeApps > 0) {
-      await Notifications.scheduleNotificationAsync({
-        content: {
-          title: 'Daily App Stats',
-          body: `You have ${activeApps} active app${activeApps > 1 ? 's' : ''}. Tap to view your daily testing statistics!`,
-          data: { type: 'daily_reports' },
-        },
-        trigger: {
-          type: Notifications.SchedulableTriggerInputTypes.DAILY,
-          hour: 9,
-          minute: 0,
-        },
-      });
+    let pendingProofsCount = 0;
+    const { data: myApps } = await supabase.from('apps').select('*').eq('owner_id', userId);
+    
+    if (myApps && myApps.length > 0) {
+      const appIds = myApps.map(a => a.id);
+      const { data: myContracts } = await supabase.from('contracts').select('id').in('app_id', appIds);
+      if (myContracts && myContracts.length > 0) {
+        const contractIds = myContracts.map(c => c.id);
+        const { count } = await supabase.from('contract_days').select('id', { count: 'exact', head: true }).in('contract_id', contractIds).eq('status', 'pending');
+        pendingProofsCount = count || 0;
+      }
+      
+      if (pendingProofsCount > 0) {
+        await Notifications.scheduleNotificationAsync({
+          content: {
+            title: 'Pending Proofs Review',
+            body: `You have ${pendingProofsCount} new proof${pendingProofsCount > 1 ? 's' : ''} waiting for review. Keep your testers happy by approving them quickly!`,
+            data: { type: 'daily_reports' },
+          },
+          trigger: {
+            type: Notifications.SchedulableTriggerInputTypes.DAILY,
+            hour: 9,
+            minute: 0,
+          },
+        });
+      }
+
+      // App Expiration Warning (10:00 AM)
+      const activeApps = myApps.filter(a => a.active === true);
+      let expiringAppName = null;
+      for (const app of activeApps) {
+        let effectiveExpiresAt = app.expires_at ? new Date(app.expires_at) : null;
+        if (!effectiveExpiresAt && app.created_at) {
+          let days = 14;
+          if (app.tier === 'Pro') days = 20;
+          if (app.tier === 'Pro+') days = 30;
+          effectiveExpiresAt = new Date(app.created_at);
+          effectiveExpiresAt.setDate(effectiveExpiresAt.getDate() + days);
+        }
+        if (effectiveExpiresAt) {
+          const daysLeft = (effectiveExpiresAt.getTime() - Date.now()) / (1000 * 3600 * 24);
+          if (daysLeft > 0 && daysLeft <= 2) {
+            expiringAppName = app.name;
+            break;
+          }
+        }
+      }
+
+      if (expiringAppName) {
+        await Notifications.scheduleNotificationAsync({
+          content: {
+            title: 'App Campaign Expiring',
+            body: `Your test for ${expiringAppName} is almost complete! Ready to launch? Convert to a Production (ASO) listing today.`,
+            data: { type: 'app_expiry' },
+          },
+          trigger: {
+            type: Notifications.SchedulableTriggerInputTypes.DAILY,
+            hour: 10,
+            minute: 0,
+          },
+        });
+      }
     }
   }
 
-  // 2. Daily Check-in Reminder for Testers (8:00 PM)
+  // 2. Daily Check-in Reminder for Testers (6:00 PM)
   if (prefs['check_in'] !== false) {
     const { count: activeContracts } = await supabase.from('contracts').select('id', { count: 'exact', head: true }).eq('tester_id', userId).eq('status', 'active');
     if (activeContracts && activeContracts > 0) {
       await Notifications.scheduleNotificationAsync({
         content: {
-          title: 'Daily Check-in Reminder',
-          body: `You have ${activeContracts} active test${activeContracts > 1 ? 's' : ''}. Don't forget to submit your daily proof!`,
+          title: 'Time to check in! ⏰',
+          body: `You have ${activeContracts} app${activeContracts > 1 ? 's' : ''} waiting for your daily proof. Don't lose your progress!`,
           data: { type: 'check_in' },
         },
         trigger: {
           type: Notifications.SchedulableTriggerInputTypes.DAILY,
-          hour: 20,
+          hour: 18,
           minute: 0,
         },
       });

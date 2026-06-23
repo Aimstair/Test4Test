@@ -1,25 +1,36 @@
 import { decode } from 'base64-arraybuffer';
 import * as ImagePicker from 'expo-image-picker';
 import * as IntentLauncher from 'expo-intent-launcher';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { Bell, Camera, Hexagon, Rocket, Sparkles } from 'lucide-react-native';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { ActivityIndicator, AppState, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useAuth } from '../../api/auth';
-import { useContracts, useUploadProof, useUserProfile, useForfeitContract } from '../../api/queries';
-import { setupDailyReminders } from '../../utils/notifications';
+import { useContracts, useUploadProof, useUserProfile, useNotifications, useDisputeProof } from '../../api/queries';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCustomAlert } from '../../components/AlertProvider';
 import AppIcon from '../../components/AppIcon';
 import EmptyState from '../../components/EmptyState';
+import OnboardingTooltip, { LayoutRect } from '../../components/OnboardingTooltip';
 import UtcCountdown from '../../components/UtcCountdown';
 import { supabase } from '../../lib/supabase';
 import { useTheme } from '../../theme/ThemeContext';
+import { setupDailyReminders } from '../../utils/notifications';
 
 export default function Dashboard() {
   const { colors, isDark } = useTheme();
   const styles = getStyles(colors, isDark);
 
   const router = useRouter();
+  const [isFocused, setIsFocused] = useState(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      setIsFocused(true);
+      return () => setIsFocused(false);
+    }, [])
+  );
+
   const { session } = useAuth();
   const { showAlert } = useCustomAlert();
   const { data: userProfile, isLoading: loadingProfile, refetch: refetchProfile } = useUserProfile(session?.user?.id);
@@ -32,7 +43,10 @@ export default function Dashboard() {
     .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
     .filter((c: any, i: number, arr: any[]) => arr.findIndex((x: any) => x.app_id === c.app_id) === i);
   const user = userProfile || { tokens: 0, karma: 0 };
+  const { data: notifications } = useNotifications(session?.user?.id);
+  const unreadCount = (notifications || []).filter((n: any) => !n.is_read).length;
   const { mutate: uploadProof, isPending: isUploading } = useUploadProof();
+  const { mutate: disputeProof } = useDisputeProof();
 
   const [activeAppId, setActiveAppId] = useState<string | null>(null);
   const [timer, setTimer] = useState(60);
@@ -43,6 +57,14 @@ export default function Dashboard() {
   const didLeaveApp = useRef(false);
 
   const [refreshing, setRefreshing] = useState(false);
+
+  // Tooltip Tour State
+  const [showTour, setShowTour] = useState(false);
+  const [tourStep, setTourStep] = useState(1);
+  const [pillsLayout, setPillsLayout] = useState<LayoutRect | null>(null);
+  const [utcLayout, setUtcLayout] = useState<LayoutRect | null>(null);
+  const [ctaLayout, setCtaLayout] = useState<LayoutRect | null>(null);
+  const [userIntent, setUserIntent] = useState<'tester' | 'developer'>('tester');
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -56,6 +78,18 @@ export default function Dashboard() {
   useEffect(() => {
     if (session?.user?.id) {
       setupDailyReminders(session.user.id);
+      
+      // Check if we need to show the onboarding tour
+      AsyncStorage.getItem('onboarding_tooltips_completed').then(completed => {
+        if (!completed) {
+          AsyncStorage.getItem('user_primary_intent').then(intent => {
+            if (intent === 'developer' || intent === 'tester') {
+              setUserIntent(intent);
+            }
+            setShowTour(true);
+          });
+        }
+      });
     }
   }, [session?.user?.id]);
 
@@ -113,15 +147,34 @@ export default function Dashboard() {
     }
   };
 
-  const handleUploadProof = async (contractId: string, dayNumber: number) => {
+  const handleUploadProof = async (contractId: string, dayNumber: number, dayId: string) => {
+    if (dayNumber === 14) {
+      router.push(`/testing/survey?contractId=${contractId}&dayId=${dayId}`);
+      return;
+    }
+
     let result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       allowsEditing: true,
       quality: 0.5,
       base64: true,
+      exif: true,
     });
 
     if (!result.canceled && result.assets[0].base64) {
+      const exif = result.assets[0].exif as any;
+      if (exif && (exif.DateTimeOriginal || exif.DateTime)) {
+         const dateStr = exif.DateTimeOriginal || exif.DateTime;
+         const imgDate = dateStr.substring(0, 10).replace(/:/g, '-');
+         const todayDate = new Date().toISOString().substring(0, 10);
+         
+         // Only enforce date validation if the string format looks correct (YYYY:MM:DD)
+         if (dateStr.includes(':') && imgDate !== todayDate) {
+            showAlert('Invalid Proof', 'This screenshot was not taken today. Please take a fresh screenshot.');
+            return;
+         }
+      }
+
       const ext = result.assets[0].uri.split('.').pop()?.toLowerCase() || 'jpeg';
       const filename = `${session?.user?.id}_proof_${Date.now()}.${ext}`;
       const filePath = `proofs/${filename}`;
@@ -141,7 +194,7 @@ export default function Dashboard() {
 
         uploadProof({ contractId, dayNumber, proofUrl: publicUrl, testerId: session?.user?.id }, {
           onSuccess: () => {
-            showAlert('+1 Karma Earned! ⭐', 'Proof uploaded for review. You earned +1 Karma for checking in today!');
+            showAlert('Proof Uploaded! 🚀', 'Your proof has been submitted and is pending review by the developer. Karma will be added once approved.');
             setActiveAppId(null);
             setTimer(60);
           },
@@ -153,20 +206,29 @@ export default function Dashboard() {
     }
   };
 
+  const handleDispute = (proofId: string) => {
+    disputeProof(proofId, {
+      onSuccess: () => {
+        showAlert('Dispute Submitted', 'Your proof has been sent to an Admin for review. If upheld, you will receive your Karma.');
+      },
+      onError: (err: any) => showAlert('Error', err.message)
+    });
+  };
+
   // Active contracts metrics
   const activeCount = contracts.filter((c: any) => c.status === 'active').length;
-  // This is a naive calculation for prototype
+  const todayStr2 = new Date().toISOString().split('T')[0];
   const doneTodayCount = contracts.filter((c: any) =>
-    c.days.some((d: any) => d.status === 'done' && d.day_number === 1) // Using day_number from DB
+    c.days.some((d: any) => d.date === todayStr2 && (d.status === 'done' || d.status === 'verified'))
   ).length;
   const atRiskCount = contracts.filter((c: any) =>
-    c.days.some((d: any) => d.status === 'missed')
+    c.days.some((d: any) => d.status === 'rejected')
   ).length;
 
   if (loadingProfile || loadingContracts) {
     return (
       <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" color="#0A84FF" />
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
@@ -180,7 +242,10 @@ export default function Dashboard() {
       }
     >
       <View style={styles.topNav}>
-        <View style={styles.topNavRight}>
+        <View 
+          style={styles.topNavRight} 
+          onLayout={(e) => setPillsLayout(e.nativeEvent.layout)}
+        >
           <View style={styles.pill}>
             <Hexagon size={14} color={colors.primary} />
             <Text style={styles.pillText}>{user.tokens}</Text>
@@ -191,14 +256,22 @@ export default function Dashboard() {
           </View>
           <TouchableOpacity style={styles.iconBtn} onPress={() => router.push('/notifications')}>
             <Bell size={20} color={colors.text} />
-            <View style={styles.badge} />
+            {unreadCount > 0 && <View style={styles.badge} />}
           </TouchableOpacity>
         </View>
       </View>
 
       <Text style={styles.headerTitle}>Today</Text>
 
-      <View style={styles.utcCard}>
+      <View 
+        style={styles.utcCard}
+        onLayout={(e) => {
+          // Adjust for absolute position relative to ScrollView if needed, 
+          // but local coordinates might be fine if Modal is positioned relatively 
+          // or we can use measureInWindow. For simplicity we use onLayout y.
+          setUtcLayout(e.nativeEvent.layout);
+        }}
+      >
         <View style={styles.utcHeaderRow}>
           <Text style={styles.utcHeader}>UTC RESET</Text>
           <View style={styles.blueDot} />
@@ -225,18 +298,26 @@ export default function Dashboard() {
       <Text style={styles.sectionTitle}>YOUR 14-DAY CONTRACTS</Text>
 
       {contracts.length === 0 && (
-        <EmptyState
-          icon={<Rocket size={48} color="#A0A0AB" strokeWidth={1.5} />}
-          title="Start Testing Apps"
-          description="Earn tokens by testing other developers' apps daily."
-          steps={[
-            { title: "Browse the Catalog", description: "Find an app that needs testing in the Catalog tab" },
-            { title: "Opt-in & Install", description: "Follow the Play Store link to opt-in and install the app" },
-            { title: "Upload Proof", description: "Launch the app from here and upload your screenshot proof daily" }
-          ]}
-          buttonText="Browse Catalog"
-          onPressButton={() => router.push('/(tabs)/catalog')}
-        />
+        <View onLayout={(e) => setCtaLayout(e.nativeEvent.layout)}>
+          <EmptyState
+            icon={<Rocket size={48} color="#A0A0AB" strokeWidth={1.5} />}
+            title="Start Testing Apps"
+            description="Earn tokens by testing other developers' apps daily."
+            steps={[
+              { title: "Browse the Catalog", description: "Find an app that needs testing in the Catalog tab" },
+              { title: "Opt-in & Install", description: "Follow the Play Store link to opt-in and install the app" },
+              { title: "Upload Proof", description: "Launch the app from here and upload your screenshot proof daily" }
+            ]}
+            buttonText={userIntent === 'developer' ? "Head to Studio" : "Browse Catalog"}
+            onPressButton={() => {
+              if (userIntent === 'developer') {
+                router.push('/(tabs)/studio');
+              } else {
+                router.push('/(tabs)/catalog');
+              }
+            }}
+          />
+        </View>
       )}
 
       {contracts.map((contract: any) => {
@@ -258,15 +339,25 @@ export default function Dashboard() {
 
         return (
           <View key={contract.id} style={styles.contractCard}>
-            <View style={styles.contractHeader}>
+            <TouchableOpacity style={styles.contractHeader} onPress={() => router.push(`/catalog/${app.id}`)}>
               <View style={styles.appIconPlaceholder}>
                 <AppIcon url={app.icon_url} size={40} />
               </View>
               <View>
                 <Text style={styles.appName}>{app.name}</Text>
-                <Text style={styles.appSub}>DAY {currentDay?.day_number || 1}/14 • +1 KARMA PER CHECK-IN</Text>
+                <Text style={styles.appSub}>DAY {currentDay?.day_number || 1}/{app.app_type === 'Production' ? '7' : '14'} • +1 KARMA PER CHECK-IN</Text>
               </View>
-            </View>
+            </TouchableOpacity>
+
+            {contract.days.filter((d: any) => d.status === 'rejected' && !d.disputed).map((rejectedDay: any) => (
+              <View key={`reject-${rejectedDay.id}`} style={styles.rejectedBlock}>
+                <Text style={styles.rejectedTitle}>🛑 Proof Rejected (Day {rejectedDay.day_number})</Text>
+                {rejectedDay.reject_reason && <Text style={styles.rejectReason}>Reason: {rejectedDay.reject_reason}</Text>}
+                <TouchableOpacity style={styles.btnDispute} onPress={() => handleDispute(rejectedDay.id)}>
+                  <Text style={styles.btnTextWhite}>DISPUTE WITH ADMIN</Text>
+                </TouchableOpacity>
+              </View>
+            ))}
 
             <View style={styles.heatmapRow}>
               {contract.days.sort((a: any, b: any) => a.day_number - b.day_number).map((d: any, i: number) => {
@@ -316,11 +407,11 @@ export default function Dashboard() {
                   <TouchableOpacity
                     style={[styles.btn, activeAppId === contract.id && timer <= 0 ? styles.btnBlue : styles.btnDisabled]}
                     disabled={isUploading || activeAppId !== contract.id || timer > 0}
-                    onPress={() => handleUploadProof(contract.id, currentDay?.day_number || 1)}
+                    onPress={() => handleUploadProof(contract.id, currentDay?.day_number || 1, currentDay?.id)}
                   >
                     <Camera size={16} color={activeAppId === contract.id && timer <= 0 ? "#fff" : "#8E8E93"} />
                     <Text style={activeAppId === contract.id && timer <= 0 ? styles.btnTextWhite : styles.btnTextDisabled}>
-                      {isUploading ? '...' : 'PROOF'}
+                      {isUploading ? '...' : (currentDay?.day_number === 14 ? 'SURVEY' : 'PROOF')}
                     </Text>
                   </TouchableOpacity>
                   <Text style={{ fontSize: 9, color: colors.primary, fontWeight: '700', marginTop: 4 }}>+1 Karma ⭐</Text>
@@ -339,6 +430,53 @@ export default function Dashboard() {
           <Text style={styles.findBtnText}>FIND ANOTHER APP TO TEST</Text>
         </TouchableOpacity>
       )}
+
+      {isFocused && (
+        <>
+          <OnboardingTooltip
+            visible={showTour && tourStep === 1}
+            targetLayout={pillsLayout}
+            title="Your Balances"
+            description="Tokens are currency to list apps. Karma is your reputation score."
+            stepIndex={1}
+            totalSteps={3}
+            onNext={() => setTourStep(2)}
+            onDismiss={() => {
+              setShowTour(false);
+              AsyncStorage.setItem('onboarding_tooltips_completed', 'true');
+            }}
+          />
+          <OnboardingTooltip
+            visible={showTour && tourStep === 2}
+            targetLayout={utcLayout}
+            title="Midnight UTC Reset"
+            description="All daily tasks reset at midnight UTC. Missing a day costs you Karma!"
+            stepIndex={2}
+            totalSteps={3}
+            onNext={() => setTourStep(3)}
+            onDismiss={() => {
+              setShowTour(false);
+              AsyncStorage.setItem('onboarding_tooltips_completed', 'true');
+            }}
+          />
+          <OnboardingTooltip
+            visible={showTour && tourStep === 3}
+            targetLayout={ctaLayout}
+            title={userIntent === 'developer' ? "List your first app" : "Find your first app"}
+            description={userIntent === 'developer' ? "Head to the Studio tab to submit your app for testing." : "Head to the Catalog tab to find an app to test and earn tokens."}
+            stepIndex={3}
+            totalSteps={3}
+            onNext={() => {
+              setShowTour(false);
+              AsyncStorage.setItem('onboarding_tooltips_completed', 'true');
+            }}
+            onDismiss={() => {
+              setShowTour(false);
+              AsyncStorage.setItem('onboarding_tooltips_completed', 'true');
+            }}
+          />
+        </>
+      )}
     </ScrollView>
   );
 }
@@ -350,7 +488,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   content: {
     padding: 12,
-    paddingTop: 64,
+    paddingTop: 32,
     paddingBottom: 20,
   },
   topNav: {
@@ -481,10 +619,6 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     letterSpacing: 1,
     marginBottom: 12,
   },
-  emptyText: {
-    color: colors.textSecondary,
-    fontSize: 14,
-  },
   contractCard: {
     backgroundColor: colors.card,
     borderRadius: 12,
@@ -578,25 +712,52 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     borderColor: colors.border,
   },
   btnTextBlack: {
-    color: isDark ? '#000' : '#000',
+    color: '#000',
     fontFamily: 'monospace',
     fontWeight: '800',
-    fontSize: 14,
+    fontSize: 12,
+    letterSpacing: 0.5,
   },
   btnTextWhite: {
-    color: '#fff',
+    color: '#FFFFFF',
     fontFamily: 'monospace',
     fontWeight: '800',
-    fontSize: 14,
+    fontSize: 12,
+    letterSpacing: 0.5,
   },
   btnTextDisabled: {
     color: colors.textSecondary,
-    fontFamily: 'monospace',
+    fontWeight: '800',
+    fontSize: 12,
+    letterSpacing: 0.5,
+  },
+  rejectedBlock: {
+    backgroundColor: isDark ? 'rgba(229, 57, 53, 0.1)' : '#FFEBEE',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(229, 57, 53, 0.3)',
+  },
+  rejectedTitle: {
+    color: colors.danger,
     fontWeight: '800',
     fontSize: 14,
+    marginBottom: 4,
+  },
+  rejectReason: {
+    color: colors.danger,
+    fontSize: 12,
+    marginBottom: 8,
+  },
+  btnDispute: {
+    backgroundColor: colors.danger,
+    paddingVertical: 8,
+    borderRadius: 8,
+    alignItems: 'center',
   },
   findBtn: {
-    backgroundColor: colors.text,
+    backgroundColor: colors.primary,
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: 'center',
@@ -604,7 +765,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     marginTop: 12,
   },
   findBtnText: {
-    color: colors.background,
+    color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '800',
   },

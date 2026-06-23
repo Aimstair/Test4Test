@@ -54,7 +54,7 @@ export default function AppDetail() {
   if (isLoading) {
     return (
       <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" color="#0A84FF" />
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
@@ -135,12 +135,24 @@ export default function AppDetail() {
                   </Text>
                 </View>
                 <View style={styles.tagBlue}>
-                  <Text style={styles.tagBlueText}>{app.bounty} TOKENS</Text>
+                  <Text style={styles.tagBlueText}>
+                    {app.boost_ends_at && new Date(app.boost_ends_at) > new Date() ? app.bounty + 10 : app.bounty} TOKENS
+                  </Text>
                 </View>
                 <View style={styles.tagOutline}>
                   <Star size={10} color="#34C759" fill="#34C759" />
                   <Text style={styles.tagOutlineText}>{app.owner?.karma?.toFixed(1) || '0.0'} KARMA</Text>
                 </View>
+                {app.boost_ends_at && new Date(app.boost_ends_at) > new Date() && (
+                  <View style={{ backgroundColor: 'rgba(255, 149, 0, 0.1)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, marginLeft: 0 }}>
+                    <Text style={{ fontSize: 9, fontWeight: '800', color: '#FF9500' }}>🔥 PROMOTED</Text>
+                  </View>
+                )}
+                {app.app_type === 'Production' && (
+                  <View style={{ backgroundColor: 'rgba(52, 199, 89, 0.1)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, marginLeft: 0 }}>
+                    <Text style={{ fontSize: 9, fontWeight: '800', color: '#34C759' }}>⭐ PRODUCTION</Text>
+                  </View>
+                )}
               </View>
             </View>
           </View>
@@ -599,7 +611,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontSize: 14,
   },
   commitBtn: {
-    backgroundColor: colors.text,
+    backgroundColor: colors.primary,
     paddingVertical: 18,
     paddingHorizontal: 20,
     borderRadius: 12,
@@ -609,7 +621,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     marginBottom: 8,
   },
   commitBtnTextLeft: {
-    color: colors.background,
+    color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '800',
   },
@@ -618,13 +630,13 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     alignItems: 'center',
   },
   commitBtnTokens: {
-    color: colors.background,
+    color: '#FFFFFF',
     fontFamily: 'monospace',
     fontSize: 14,
     fontWeight: '800',
   },
   commitBtnTextRight: {
-    color: colors.background,
+    color: '#FFFFFF',
     opacity: 0.7,
     fontSize: 14,
     fontWeight: '700',

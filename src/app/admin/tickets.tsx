@@ -144,7 +144,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     backgroundColor: isDark ? '#1C1C1E' : '#F2F2F7',
   },
   filterBtnActive: {
-    backgroundColor: colors.text,
+    backgroundColor: colors.primary,
   },
   filterText: {
     fontSize: 12,
@@ -152,7 +152,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     color: colors.textSecondary,
   },
   filterTextActive: {
-    color: colors.background,
+    color: '#FFFFFF',
   },
   content: {
     padding: 16,

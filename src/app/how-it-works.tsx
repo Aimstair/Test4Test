@@ -335,13 +335,13 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     alignItems: 'center',
   },
   btnBlack: {
-    backgroundColor: colors.text,
+    backgroundColor: colors.primary,
   },
   btnGrey: {
     backgroundColor: colors.border,
   },
   btnTextWhite: {
-    color: colors.background,
+    color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '800',
   },

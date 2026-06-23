@@ -1,11 +1,11 @@
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import { useRouter } from 'expo-router';
-import { ChevronRight, Clock, CreditCard, HelpCircle, LogOut, Settings } from 'lucide-react-native';
+import { ChevronRight, Clock, CreditCard, HelpCircle, LogOut, Settings, ShieldCheck } from 'lucide-react-native';
 import { ActivityIndicator, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useAuth } from '../../api/auth';
 import { useContracts, useUserProfile, useUserStats } from '../../api/queries';
 import { supabase } from '../../lib/supabase';
 import { useTheme } from '../../theme/ThemeContext';
-import { GoogleSignin } from '@react-native-google-signin/google-signin';
 
 export default function Profile() {
   const router = useRouter();
@@ -39,7 +39,7 @@ export default function Profile() {
   if (isLoading) {
     return (
       <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" color="#0A84FF" />
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
@@ -98,62 +98,92 @@ export default function Profile() {
       </View>
 
       <Text style={styles.sectionTitle}>ACCOUNT</Text>
+      
+      <View style={[styles.card, { padding: 0 }]}>
+        <TouchableOpacity style={styles.listItem} onPress={() => router.push('/pricing')}>
+          <View style={styles.iconContainer}>
+            <CreditCard size={20} color="#8E8E93" />
+          </View>
+          <View style={styles.rowTextCol}>
+            <Text style={styles.rowTitle}>Subscription & Tokens</Text>
+            <Text style={styles.rowSub}>Manage your billing and tokens</Text>
+          </View>
+          <ChevronRight size={16} color="#C7C7CC" />
+        </TouchableOpacity>
 
-      <TouchableOpacity style={styles.menuItem} onPress={() => router.push('/pricing')}>
-        <View style={styles.iconBox}>
-          <CreditCard size={18} color={isDark ? '#FFCC00' : '#000'} />
-        </View>
-        <View style={styles.menuTextCol}>
-          <Text style={styles.menuTitle}>Pricing & Plans</Text>
-          <Text style={styles.menuSub}>SUBSCRIPTIONS AND TOKEN PACKS</Text>
-        </View>
-        <ChevronRight size={16} color="#C7C7CC" />
-      </TouchableOpacity>
+        <View style={styles.divider} />
 
-      <TouchableOpacity style={styles.menuItem} onPress={() => router.push('/how-it-works')}>
-        <View style={styles.iconBox}>
-          <HelpCircle size={18} color={isDark ? '#FFCC00' : '#000'} />
-        </View>
-        <View style={styles.menuTextCol}>
-          <Text style={styles.menuTitle}>How it Works</Text>
-          <Text style={styles.menuSub}>THE 14-DAY TESTING FLOW</Text>
-        </View>
-        <ChevronRight size={16} color="#C7C7CC" />
-      </TouchableOpacity>
+        <TouchableOpacity style={styles.listItem} onPress={() => router.push('/how-it-works')}>
+          <View style={styles.iconContainer}>
+            <HelpCircle size={20} color="#8E8E93" />
+          </View>
+          <View style={styles.rowTextCol}>
+            <Text style={styles.rowTitle}>How it Works</Text>
+            <Text style={styles.rowSub}>Learn the 14-day testing flow</Text>
+          </View>
+          <ChevronRight size={16} color="#C7C7CC" />
+        </TouchableOpacity>
 
-      <TouchableOpacity style={styles.menuItem} onPress={() => router.push('/transactions')}>
-        <View style={styles.iconBox}>
-          <Clock size={18} color={isDark ? '#FFCC00' : '#000'} />
-        </View>
-        <View style={styles.menuTextCol}>
-          <Text style={styles.menuTitle}>Transaction History</Text>
-          <Text style={styles.menuSub}>TOKEN AND KARMA LOGS</Text>
-        </View>
-        <ChevronRight size={16} color="#C7C7CC" />
-      </TouchableOpacity>
+        <View style={styles.divider} />
+
+        <TouchableOpacity style={styles.listItem} onPress={() => router.push('/transactions')}>
+          <View style={styles.iconContainer}>
+            <Clock size={20} color="#8E8E93" />
+          </View>
+          <View style={styles.rowTextCol}>
+            <Text style={styles.rowTitle}>Transaction History</Text>
+            <Text style={styles.rowSub}>Token and karma logs</Text>
+          </View>
+          <ChevronRight size={16} color="#C7C7CC" />
+        </TouchableOpacity>
+      </View>
 
       <Text style={styles.sectionTitle}>APP SETTINGS</Text>
 
-      <TouchableOpacity style={styles.menuItem} onPress={() => router.push('/settings')}>
-        <View style={styles.iconBox}>
-          <Settings size={18} color={isDark ? '#FFCC00' : '#000'} />
-        </View>
-        <View style={styles.menuTextCol}>
-          <Text style={styles.menuTitle}>Settings</Text>
-          <Text style={styles.menuSub}>APPEARANCE, NOTIFICATIONS, PURCHASES</Text>
-        </View>
-        <ChevronRight size={16} color="#C7C7CC" />
-      </TouchableOpacity>
+      <View style={[styles.card, { padding: 0 }]}>
+        <TouchableOpacity style={styles.listItem} onPress={() => router.push('/settings')}>
+          <View style={styles.iconContainer}>
+            <Settings size={20} color="#8E8E93" />
+          </View>
+          <View style={styles.rowTextCol}>
+            <Text style={styles.rowTitle}>Settings</Text>
+            <Text style={styles.rowSub}>Appearance, notifications, and app behavior</Text>
+          </View>
+          <ChevronRight size={16} color="#C7C7CC" />
+        </TouchableOpacity>
+      </View>
 
-      <TouchableOpacity style={[styles.menuItem, { borderColor: '#FFD5D5' }]} onPress={handleSignOut}>
-        <View style={[styles.iconBox, { backgroundColor: '#FF3B30', borderColor: '#FF3B30' }]}>
-          <LogOut size={18} color="#fff" />
-        </View>
-        <View style={styles.menuTextCol}>
-          <Text style={[styles.menuTitle, { color: '#FF3B30' }]}>Sign Out</Text>
-          <Text style={styles.menuSub}>LOG OUT OF YOUR ACCOUNT</Text>
-        </View>
-      </TouchableOpacity>
+      {user.role === 'admin' && (
+        <>
+          <Text style={styles.sectionTitle}>ADMINISTRATION</Text>
+          <View style={[styles.card, { padding: 0 }]}>
+            <TouchableOpacity style={styles.listItem} onPress={() => router.push('/admin')}>
+              <View style={styles.iconContainer}>
+                <ShieldCheck size={20} color="#FF3B30" />
+              </View>
+              <View style={styles.rowTextCol}>
+                <Text style={styles.rowTitle}>Admin Panel</Text>
+                <Text style={styles.rowSub}>Manage users, tickets, and reports</Text>
+              </View>
+              <ChevronRight size={16} color="#C7C7CC" />
+            </TouchableOpacity>
+          </View>
+        </>
+      )}
+
+      <Text style={styles.sectionTitle}>SESSION</Text>
+
+      <View style={[styles.card, { padding: 0, marginBottom: 40 }]}>
+        <TouchableOpacity style={styles.listItem} onPress={handleSignOut}>
+          <View style={styles.iconContainer}>
+            <LogOut size={20} color="#FF3B30" />
+          </View>
+          <View style={styles.rowTextCol}>
+            <Text style={[styles.rowTitle, { color: '#FF3B30' }]}>Sign Out</Text>
+            <Text style={styles.rowSub}>Log out of your account</Text>
+          </View>
+        </TouchableOpacity>
+      </View>
 
     </ScrollView>
   );
@@ -166,7 +196,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   content: {
     padding: 12,
-    paddingTop: 64,
+    paddingTop: 48,
     paddingBottom: 20,
   },
   headerTitle: {
@@ -306,46 +336,47 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontWeight: '600',
   },
   sectionTitle: {
-    color: colors.text,
+    color: colors.textSecondary,
     fontSize: 11,
     fontWeight: '800',
     letterSpacing: 1,
-    marginBottom: 12,
+    marginBottom: 8,
     marginLeft: 8,
+    marginTop: 16,
   },
-  menuItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  card: {
     backgroundColor: colors.card,
     borderRadius: 12,
-    padding: 12,
     borderWidth: 1,
     borderColor: colors.border,
-    marginBottom: 12,
+    overflow: 'hidden',
   },
-  iconBox: {
-    width: 40,
-    height: 40,
-    backgroundColor: isDark ? 'rgba(255, 204, 0, 0.15)' : '#FFCC00',
-    borderWidth: 2,
-    borderColor: isDark ? '#FFCC00' : '#000',
+  listItem: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 16,
+    padding: 12,
   },
-  menuTextCol: {
+  iconContainer: {
+    width: 24,
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  rowTextCol: {
     flex: 1,
   },
-  menuTitle: {
+  rowTitle: {
     fontSize: 16,
-    fontWeight: '800',
+    fontWeight: '700',
     color: colors.text,
     marginBottom: 4,
   },
-  menuSub: {
-    fontSize: 10,
+  rowSub: {
+    fontSize: 13,
     color: colors.textSecondary,
-    fontWeight: '600',
-    letterSpacing: 0.5,
+  },
+  listDivider: {
+    height: 1,
+    backgroundColor: colors.border,
+    marginLeft: 52,
   },
 });

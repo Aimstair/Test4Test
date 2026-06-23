@@ -25,7 +25,7 @@ const COUNTRIES = [
 
 export default function NewApp() {
   const router = useRouter();
-  const { renewAppId } = useLocalSearchParams();
+  const { renewAppId, presetAppType } = useLocalSearchParams();
   const { session } = useAuth();
   const { showAlert } = useCustomAlert();
   const { data: userProfile } = useUserProfile(session?.user?.id);
@@ -47,17 +47,18 @@ export default function NewApp() {
   const [geo, setGeo] = useState('Global');
   const [geoSpecific, setGeoSpecific] = useState('US');
   const [addedEmail, setAddedEmail] = useState(false);
+  const [appType, setAppType] = useState<'Testing' | 'Production'>('Testing');
   const [iconUrl, setIconUrl] = useState('');
   const [iconBase64, setIconBase64] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   const [showTokenModal, setShowTokenModal] = useState(false);
 
   // Dynamic cost calculation
-  let displayTesterLimit = 12;
+  let displayTesterLimit = appType === 'Production' ? 24 : 12;
   let displayAppBounty = 5;
   let tokenCost = 50;
-  if (tier === 'Pro') { displayTesterLimit = 25; tokenCost = 150; displayAppBounty = 10; }
-  if (tier === 'Pro+') { displayTesterLimit = 50; tokenCost = 300; displayAppBounty = 20; }
+  if (tier === 'Pro') { displayTesterLimit = appType === 'Production' ? 50 : 25; tokenCost = 150; displayAppBounty = 10; }
+  if (tier === 'Pro+') { displayTesterLimit = appType === 'Production' ? 100 : 50; tokenCost = 300; displayAppBounty = 20; }
   if (subscriptionTier === 'Pro+' || (subscriptionTier === 'Pro' && (tier === 'Basic' || tier === 'Pro'))) {
     tokenCost = 0;
   }
@@ -81,6 +82,9 @@ export default function NewApp() {
 
   // Pre-fill form if renewing
   useEffect(() => {
+    if (presetAppType && (presetAppType === 'Testing' || presetAppType === 'Production')) {
+      setAppType(presetAppType as any);
+    }
     if (renewAppId && catalogData) {
       const existingApp = catalogData.find((a: any) => a.id === renewAppId);
       if (existingApp) {
@@ -92,7 +96,7 @@ export default function NewApp() {
         setAddedEmail(true);
       }
     }
-  }, [renewAppId, catalogData]);
+  }, [renewAppId, presetAppType, catalogData]);
 
   // Toast state
   const [showToast, setShowToast] = useState(false);
@@ -161,7 +165,15 @@ export default function NewApp() {
       return;
     }
 
-    if (!renewAppId && activeAppsCount >= activeAppLimit) {
+    let isCurrentAppActive = false;
+    if (renewAppId && catalogData) {
+      const existingApp = catalogData.find((a: any) => a.id === renewAppId);
+      if (existingApp?.active !== false) {
+        isCurrentAppActive = true;
+      }
+    }
+
+    if (!isCurrentAppActive && activeAppsCount >= activeAppLimit) {
       showAlert('Limit Reached', `Your ${subscriptionTier} tier only allows ${activeAppLimit} active app${activeAppLimit === 1 ? '' : 's'}. Please upgrade your subscription or delist an existing app.`);
       return;
     }
@@ -209,6 +221,7 @@ export default function NewApp() {
         tokenCost,
         owner_id: session?.user?.id as string,
         subscriptionTier,
+        app_type: appType,
       }, {
         onSuccess: () => {
           setIsUploading(false);
@@ -233,6 +246,7 @@ export default function NewApp() {
           os_requirements: ['Android'],
           internal_test_url: url.trim(),
           owner_id: session?.user?.id,
+          app_type: appType,
         },
         tokenCost,
         subscriptionTier,
@@ -259,6 +273,22 @@ export default function NewApp() {
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
+
+        <Text style={styles.label}>APP TYPE</Text>
+        <View style={styles.segmentContainer}>
+          <TouchableOpacity 
+            style={[styles.segmentBtn, appType === 'Testing' && styles.segmentBtnActive]}
+            onPress={() => setAppType('Testing')}
+          >
+            <Text style={[styles.segmentText, appType === 'Testing' && styles.segmentTextActive]}>14-Day Testing</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={[styles.segmentBtn, appType === 'Production' && styles.segmentBtnActive]}
+            onPress={() => setAppType('Production')}
+          >
+            <Text style={[styles.segmentText, appType === 'Production' && styles.segmentTextActive]}>Production (ASO)</Text>
+          </TouchableOpacity>
+        </View>
 
         <Text style={styles.label}>APP ICON</Text>
         <TouchableOpacity style={styles.iconUploadBox} onPress={handlePickIcon} disabled={isUploading}>
@@ -483,6 +513,30 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontSize: 16,
     color: colors.text,
   },
+  segmentContainer: {
+    flexDirection: 'row',
+    backgroundColor: colors.card,
+    borderRadius: 8,
+    padding: 4,
+    marginBottom: 24,
+  },
+  segmentBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    alignItems: 'center',
+    borderRadius: 6,
+  },
+  segmentBtnActive: {
+    backgroundColor: colors.primary,
+  },
+  segmentText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.textSecondary,
+  },
+  segmentTextActive: {
+    color: '#fff',
+  },
   iconUploadBox: {
     height: 100,
     width: 100,
@@ -672,14 +726,14 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     color: colors.primary,
   },
   publishBtn: {
-    backgroundColor: colors.text,
+    backgroundColor: colors.primary,
     paddingVertical: 18,
     borderRadius: 12,
     alignItems: 'center',
     marginTop: 16,
   },
   publishBtnText: {
-    color: colors.background,
+    color: '#FFFFFF',
     fontFamily: 'monospace',
     fontWeight: '800',
     fontSize: 16,
@@ -727,11 +781,11 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     flex: 1,
     paddingVertical: 14,
     borderRadius: 8,
-    backgroundColor: colors.text,
+    backgroundColor: colors.primary,
     alignItems: 'center',
   },
   modalBtnTextGo: {
-    color: colors.background,
+    color: '#FFFFFF',
     fontWeight: '700',
     fontSize: 14,
   },
@@ -739,13 +793,13 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     position: 'absolute',
     bottom: 100,
     alignSelf: 'center',
-    backgroundColor: colors.text,
+    backgroundColor: colors.primary,
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 24,
   },
   toastText: {
-    color: colors.background,
+    color: '#FFFFFF',
     fontWeight: '600',
   }
 });

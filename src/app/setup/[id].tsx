@@ -27,6 +27,8 @@ export default function Setup() {
   const [isTimerRunning, setIsTimerRunning] = useState(false);
   const [proofUrl, setProofUrl] = useState<string>('');
   const [proofBase64, setProofBase64] = useState<string>('');
+  const [rateProofUrl, setRateProofUrl] = useState<string>('');
+  const [rateProofBase64, setRateProofBase64] = useState<string>('');
   const [isUploading, setIsUploading] = useState(false);
   const [showFailModal, setShowFailModal] = useState(false);
   const [modalView, setModalView] = useState<'default' | 'report' | 'success'>('default');
@@ -64,10 +66,17 @@ export default function Setup() {
   const { mutate: createReport, isPending: isReporting } = useCreateReport();
 
   const app = catalog?.find((a: any) => a.id === id);
+  const isProduction = app?.app_type === 'Production';
 
-  let signupBonus = 5;
-  if (app?.tier === 'Pro') signupBonus = 10;
-  if (app?.tier === 'Pro+') signupBonus = 20;
+  const isBoosted = app?.boost_ends_at && new Date(app.boost_ends_at) > new Date();
+  const signupBonus = (app?.bounty || 0) + (isBoosted ? 10 : 0);
+
+  const STEP_INSTALL_CONFIRM = isProduction ? null : 2;
+  const STEP_RATE = isProduction ? 2 : null;
+  const STEP_RATE_PROOF = isProduction ? 3 : null;
+  const STEP_LAUNCH = isProduction ? 4 : 3;
+  const STEP_CHECKIN = isProduction ? 5 : 4;
+  const STEP_CLAIM = isProduction ? 6 : 5;
 
   const appState = useRef(AppState.currentState);
   const lastBackgroundTimeRef = useRef<number | null>(null);
@@ -212,7 +221,29 @@ export default function Setup() {
     if (!result.canceled && result.assets[0].base64) {
       setProofUrl(result.assets[0].uri);
       setProofBase64(result.assets[0].base64);
-      handleStepComplete(4);
+      handleStepComplete(app?.app_type === 'Production' ? 5 : 4);
+    }
+  };
+
+  const handleRateApp = () => {
+    if (app.internal_test_url) {
+      Linking.openURL(app.internal_test_url).catch(() => showAlert('Error', 'Could not open url'));
+    }
+    handleStepComplete(2);
+  };
+
+  const handleRateProof = async () => {
+    let result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      quality: 0.5,
+      base64: true,
+    });
+
+    if (!result.canceled && result.assets[0].base64) {
+      setRateProofUrl(result.assets[0].uri);
+      setRateProofBase64(result.assets[0].base64);
+      handleStepComplete(3);
     }
   };
 
@@ -252,7 +283,34 @@ export default function Setup() {
       }
     }
 
-    startContract({ appId: app.id, testerId: session?.user?.id as string, proofUrl: finalProofUrl }, {
+    let finalRateProofUrl = rateProofUrl;
+    if (rateProofBase64) {
+      try {
+        const ext = rateProofUrl.split('.').pop()?.toLowerCase() || 'jpeg';
+        const filename = `${session?.user?.id}_rate_${Date.now()}.${ext}`;
+        const filePath = `proofs/${filename}`;
+
+        const { error } = await supabase.storage
+          .from('public-assets')
+          .upload(filePath, decode(rateProofBase64), {
+            contentType: `image/${ext === 'png' ? 'png' : 'jpeg'}`,
+          });
+
+        if (error) throw error;
+
+        const { data: { publicUrl } } = supabase.storage
+          .from('public-assets')
+          .getPublicUrl(filePath);
+
+        finalRateProofUrl = publicUrl;
+      } catch (err: any) {
+        setIsUploading(false);
+        displayToast(err.message || 'Rate Upload Failed', 'error');
+        return;
+      }
+    }
+
+    startContract({ appId: app.id, testerId: session?.user?.id as string, proofUrl: finalProofUrl, rateProofUrl: finalRateProofUrl }, {
       onSuccess: () => {
         setIsUploading(false);
         router.replace('/(tabs)/dashboard');
@@ -315,33 +373,88 @@ export default function Setup() {
           </TouchableOpacity>
         </View>
 
-        {/* Step 2: Confirm install */}
-        <View style={styles.stepCard}>
-          <View style={styles.stepHeader}>
-            <View style={[styles.iconBox, activeStep === 2 ? styles.iconBoxActive : null]}>
-              {activeStep > 2 ? <CheckCircle size={18} color={colors.success} /> : <CheckCircle size={18} color={colors.textSecondary} />}
+        {/* Step 2: Confirm install (Testing Only) */}
+        {!isProduction && (
+          <View style={styles.stepCard}>
+            <View style={styles.stepHeader}>
+              <View style={[styles.iconBox, activeStep === STEP_INSTALL_CONFIRM ? styles.iconBoxActive : null]}>
+                {activeStep > (STEP_INSTALL_CONFIRM || 0) ? <CheckCircle size={18} color={colors.success} /> : <CheckCircle size={18} color={colors.textSecondary} />}
+              </View>
+              <View style={styles.stepTitleCol}>
+                <Text style={styles.stepTitle}>Confirm install</Text>
+                <Text style={styles.stepDesc}>Continue after the app has finished downloading on your Android device.</Text>
+              </View>
             </View>
-            <View style={styles.stepTitleCol}>
-              <Text style={styles.stepTitle}>Confirm install</Text>
-              <Text style={styles.stepDesc}>Continue after the app has finished downloading on your Android device.</Text>
-            </View>
+            <TouchableOpacity
+              style={[styles.btn, activeStep === STEP_INSTALL_CONFIRM ? styles.btnActive : styles.btnDisabled]}
+              disabled={activeStep !== STEP_INSTALL_CONFIRM}
+              onPress={() => handleStepComplete(STEP_INSTALL_CONFIRM || 2)}
+            >
+              <Text style={[styles.btnText, activeStep === STEP_INSTALL_CONFIRM ? styles.btnTextActive : styles.btnTextDisabled]}>
+                {activeStep > (STEP_INSTALL_CONFIRM || 0) ? "Completed" : "I installed the app"}
+              </Text>
+            </TouchableOpacity>
           </View>
-          <TouchableOpacity
-            style={[styles.btn, activeStep === 2 ? styles.btnActive : styles.btnDisabled]}
-            disabled={activeStep !== 2}
-            onPress={() => handleStepComplete(2)}
-          >
-            <Text style={[styles.btnText, activeStep === 2 ? styles.btnTextActive : styles.btnTextDisabled]}>
-              {activeStep > 2 ? "Completed" : "I installed the app"}
-            </Text>
-          </TouchableOpacity>
-        </View>
+        )}
 
-        {/* Step 3: Launch and use */}
+        {/* Step 2: Rate App (Production Only) */}
+        {isProduction && (
+          <View style={styles.stepCard}>
+            <View style={styles.stepHeader}>
+              <View style={[styles.iconBox, activeStep === STEP_RATE ? styles.iconBoxActive : null]}>
+                {activeStep > (STEP_RATE || 0) ? <CheckCircle size={18} color={colors.success} /> : <Store size={18} color={colors.textSecondary} />}
+              </View>
+              <View style={styles.stepTitleCol}>
+                <Text style={styles.stepTitle}>Rate on Google Play</Text>
+                <Text style={styles.stepDesc}>Leave an honest 5-star review for the developer to help them rank.</Text>
+              </View>
+            </View>
+            <TouchableOpacity
+              style={[styles.btn, activeStep === STEP_RATE ? styles.btnActive : styles.btnDisabled]}
+              disabled={activeStep !== STEP_RATE}
+              onPress={handleRateApp}
+            >
+              <Text style={[styles.btnText, activeStep === STEP_RATE ? styles.btnTextActive : styles.btnTextDisabled]}>
+                {activeStep > (STEP_RATE || 0) ? "Completed" : "Leave Review"}
+              </Text>
+              {activeStep === STEP_RATE && <ExternalLink size={14} color={colors.background} style={{ marginLeft: 6 }} />}
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Step 3: Upload Rate Proof (Production Only) */}
+        {isProduction && (
+          <View style={styles.stepCard}>
+            <View style={styles.stepHeader}>
+              <View style={[styles.iconBox, activeStep === STEP_RATE_PROOF ? styles.iconBoxActive : null]}>
+                {activeStep > (STEP_RATE_PROOF || 0) ? <CheckCircle size={18} color={colors.success} /> : <Camera size={18} color={colors.textSecondary} />}
+              </View>
+              <View style={styles.stepTitleCol}>
+                <Text style={styles.stepTitle}>Submit Review Proof</Text>
+                <Text style={styles.stepDesc}>Upload a screenshot of your Google Play review.</Text>
+              </View>
+            </View>
+            <TouchableOpacity
+              style={[styles.btn, activeStep === STEP_RATE_PROOF ? styles.btnActive : styles.btnDisabled]}
+              disabled={activeStep !== STEP_RATE_PROOF}
+              onPress={handleRateProof}
+            >
+              {rateProofUrl ? (
+                <Text style={[styles.btnText, styles.btnTextActive]}>Proof Uploaded</Text>
+              ) : (
+                <Text style={[styles.btnText, activeStep === STEP_RATE_PROOF ? styles.btnTextActive : styles.btnTextDisabled]}>
+                  {activeStep > (STEP_RATE_PROOF || 0) ? "Completed" : "Upload Screenshot"}
+                </Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Launch and use */}
         <View style={styles.stepCard}>
           <View style={styles.stepHeader}>
-            <View style={[styles.iconBox, activeStep === 3 ? styles.iconBoxActive : null]}>
-              {activeStep > 3 ? <CheckCircle size={18} color={colors.success} /> : <Play size={18} color={colors.textSecondary} />}
+            <View style={[styles.iconBox, activeStep === STEP_LAUNCH ? styles.iconBoxActive : null]}>
+              {activeStep > STEP_LAUNCH ? <CheckCircle size={18} color={colors.success} /> : <Play size={18} color={colors.textSecondary} />}
             </View>
             <View style={styles.stepTitleCol}>
               <Text style={styles.stepTitle}>Launch and use for 1 minute</Text>
@@ -349,15 +462,15 @@ export default function Setup() {
             </View>
           </View>
           <TouchableOpacity
-            style={[styles.btn, activeStep === 3 ? styles.btnActive : styles.btnDisabled]}
-            disabled={activeStep !== 3 || isTimerRunning}
+            style={[styles.btn, activeStep === STEP_LAUNCH ? styles.btnActive : styles.btnDisabled]}
+            disabled={activeStep !== STEP_LAUNCH || isTimerRunning}
             onPress={handleLaunchApp}
           >
             {isTimerRunning ? (
               <Text style={[styles.btnText, styles.btnTextActive]}>Using app... {timer}s</Text>
             ) : (
-              <Text style={[styles.btnText, activeStep === 3 ? styles.btnTextActive : styles.btnTextDisabled]}>
-                {activeStep > 3 ? "Completed" : "Launch app"}
+              <Text style={[styles.btnText, activeStep === STEP_LAUNCH ? styles.btnTextActive : styles.btnTextDisabled]}>
+                {activeStep > STEP_LAUNCH ? "Completed" : "Launch app"}
               </Text>
             )}
           </TouchableOpacity>
@@ -368,11 +481,11 @@ export default function Setup() {
           )}
         </View>
 
-        {/* Step 4: Check in */}
+        {/* Check in */}
         <View style={styles.stepCard}>
           <View style={styles.stepHeader}>
-            <View style={[styles.iconBox, activeStep === 4 ? styles.iconBoxActive : null]}>
-              {activeStep > 4 ? <CheckCircle size={18} color={colors.success} /> : <Camera size={18} color={colors.textSecondary} />}
+            <View style={[styles.iconBox, activeStep === STEP_CHECKIN ? styles.iconBoxActive : null]}>
+              {activeStep > STEP_CHECKIN ? <CheckCircle size={18} color={colors.success} /> : <Camera size={18} color={colors.textSecondary} />}
             </View>
             <View style={styles.stepTitleCol}>
               <Text style={styles.stepTitle}>Check in</Text>
@@ -380,8 +493,8 @@ export default function Setup() {
             </View>
           </View>
           <TouchableOpacity
-            style={[styles.btn, activeStep === 4 ? styles.btnActive : styles.btnDisabled]}
-            disabled={activeStep !== 4 || isUploading}
+            style={[styles.btn, activeStep === STEP_CHECKIN ? styles.btnActive : styles.btnDisabled]}
+            disabled={activeStep !== STEP_CHECKIN || isUploading}
             onPress={handleCheckIn}
           >
             {isUploading ? (
@@ -389,17 +502,17 @@ export default function Setup() {
             ) : proofUrl ? (
               <Text style={[styles.btnText, styles.btnTextActive]}>Proof Uploaded</Text>
             ) : (
-              <Text style={[styles.btnText, activeStep === 4 ? styles.btnTextActive : styles.btnTextDisabled]}>
-                {activeStep > 4 ? "Completed" : "Check in now"}
+              <Text style={[styles.btnText, activeStep === STEP_CHECKIN ? styles.btnTextActive : styles.btnTextDisabled]}>
+                {activeStep > STEP_CHECKIN ? "Completed" : "Check in now"}
               </Text>
             )}
           </TouchableOpacity>
         </View>
 
-        {/* Step 5: Claim reward */}
+        {/* Claim reward */}
         <View style={styles.stepCard}>
           <View style={styles.stepHeader}>
-            <View style={[styles.iconBox, activeStep === 5 ? styles.iconBoxActive : null]}>
+            <View style={[styles.iconBox, activeStep === STEP_CLAIM ? styles.iconBoxActive : null]}>
               <Clock size={18} color={colors.textSecondary} />
             </View>
             <View style={styles.stepTitleCol}>
@@ -408,14 +521,14 @@ export default function Setup() {
             </View>
           </View>
           <TouchableOpacity
-            style={[styles.btn, activeStep === 5 ? styles.btnActive : styles.btnDisabled]}
-            disabled={activeStep < 5 || isPending}
+            style={[styles.btn, activeStep === STEP_CLAIM ? styles.btnActive : styles.btnDisabled]}
+            disabled={activeStep < STEP_CLAIM || isPending}
             onPress={handleClaimReward}
           >
             {isPending ? (
-              <ActivityIndicator color={activeStep === 5 ? colors.background : colors.text} />
+              <ActivityIndicator color={activeStep === STEP_CLAIM ? colors.background : colors.text} />
             ) : (
-              <Text style={[styles.btnText, activeStep === 5 ? styles.btnTextActive : styles.btnTextDisabled]}>Claim {signupBonus} Tokens</Text>
+              <Text style={[styles.btnText, activeStep === STEP_CLAIM ? styles.btnTextActive : styles.btnTextDisabled]}>Claim {signupBonus} Tokens</Text>
             )}
           </TouchableOpacity>
         </View>
@@ -634,7 +747,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     justifyContent: 'center',
   },
   btnActive: {
-    backgroundColor: colors.text,
+    backgroundColor: colors.primary,
   },
   btnActiveLight: {
     backgroundColor: colors.textSecondary,
@@ -647,7 +760,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontWeight: '800',
   },
   btnTextActive: {
-    color: colors.background,
+    color: '#FFFFFF',
   },
   btnTextDisabled: {
     color: colors.placeholder,
@@ -736,7 +849,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   modalBtnPrimary: {
     flexDirection: 'row',
-    backgroundColor: colors.text,
+    backgroundColor: colors.primary,
     paddingVertical: 14,
     paddingHorizontal: 24,
     borderRadius: 12,
@@ -746,7 +859,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     marginBottom: 10,
   },
   modalBtnPrimaryText: {
-    color: colors.background,
+    color: '#FFFFFF',
     fontSize: 15,
     fontWeight: '700',
   },

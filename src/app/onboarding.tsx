@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import { decode } from 'base64-arraybuffer';
 import * as Device from 'expo-device';
@@ -34,7 +35,7 @@ export default function Onboarding() {
   const insets = useSafeAreaInsets();
 
   const handleNext = async () => {
-    if (step < 4) {
+    if (step < 5) {
       setStep(step + 1);
     } else {
       if (isUploading) return;
@@ -168,7 +169,7 @@ export default function Onboarding() {
   const renderProgressBar = () => {
     return (
       <View style={styles.progressRow}>
-        {[1, 2, 3, 4].map((s) => (
+        {[1, 2, 3, 4, 5].map((s) => (
           <View
             key={s}
             style={[styles.progressSegment, step >= s && styles.progressSegmentActive]}
@@ -197,21 +198,30 @@ export default function Onboarding() {
           <View style={styles.checkIconBox}>
             <Check size={16} color={colors.background} />
           </View>
-          <Text style={styles.checkText}>Test apps daily for 14 days</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.checkTitle}>Earn Tokens</Text>
+            <Text style={styles.checkTextSmall}>Get paid for testing apps. Spend tokens to list your own apps.</Text>
+          </View>
         </View>
 
         <View style={styles.checkItem}>
           <View style={styles.checkIconBox}>
             <Check size={16} color={colors.background} />
           </View>
-          <Text style={styles.checkText}>Earn Tokens (currency) and Karma</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.checkTitle}>Build Karma</Text>
+            <Text style={styles.checkTextSmall}>Karma is your reputation. Check in daily for +1, miss a day and lose -2.</Text>
+          </View>
         </View>
 
         <View style={styles.checkItem}>
           <View style={styles.checkIconBox}>
             <Check size={16} color={colors.background} />
           </View>
-          <Text style={styles.checkText}>Lose Karma if you miss a daily test</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.checkTitle}>14-Day Commitment</Text>
+            <Text style={styles.checkTextSmall}>Real testers, real sessions. Upload a daily screenshot as proof.</Text>
+          </View>
         </View>
       </View>
 
@@ -332,25 +342,73 @@ export default function Onboarding() {
     </View>
   );
 
+  const handleIntentSelection = async (intent: 'tester' | 'developer') => {
+    await AsyncStorage.setItem('user_primary_intent', intent);
+    setStep(5);
+  };
+
   const renderStep4 = () => (
     <View style={styles.stepContainer}>
-      <View style={styles.heroImageContainerAlt}>
-        <RNImage
-          source={require('../../assets/images/onboarding_2.jpg')}
-          style={styles.heroImage}
-          resizeMode="cover"
-        />
+      <View style={styles.headerArea}>
+        <Text style={styles.title}>What's your primary goal?</Text>
+        <Text style={styles.subtitle}>
+          This helps us customize your first experience. You can always do both!
+        </Text>
       </View>
-      <View style={styles.centerContent}>
-        <View style={styles.karmaCircle}>
-          <Text style={styles.karmaPlus}>+</Text>
-          <Text style={styles.karmaNumber}>80</Text>
-          <Text style={styles.karmaLabel}>KARMA</Text>
-        </View>
 
-        <Text style={styles.titleCenter}>You're in.</Text>
-        <Text style={styles.subtitleCenter}>
-          Karma controls your listing visibility.{'\n'}Earn +1 per daily check-in.{'\n'}Lose -2 for each app you miss.
+      <TouchableOpacity
+        style={styles.intentCard}
+        onPress={() => handleIntentSelection('tester')}
+        activeOpacity={0.8}
+      >
+        <Text style={styles.intentEmoji}>🧪</Text>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.intentTitle}>I want to test apps</Text>
+          <Text style={styles.intentDesc}>Test apps daily, earn Tokens, and build your Karma.</Text>
+        </View>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={styles.intentCard}
+        onPress={() => handleIntentSelection('developer')}
+        activeOpacity={0.8}
+      >
+        <Text style={styles.intentEmoji}>🚀</Text>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.intentTitle}>I need testers</Text>
+          <Text style={styles.intentDesc}>List your app, reach 20 testers, and graduate to production.</Text>
+        </View>
+      </TouchableOpacity>
+
+      <View style={{ flex: 1 }} />
+    </View>
+  );
+
+  const renderStep5 = () => (
+    <View style={styles.stepContainer}>
+      <View style={styles.headerArea}>
+        <Text style={styles.title}>The Daily Proof</Text>
+        <Text style={styles.subtitle}>
+          To verify you actually tested an app, you must upload a daily screenshot.
+        </Text>
+      </View>
+
+      <View style={styles.proofExampleCard}>
+        <View style={styles.proofImgPlaceholder}>
+          <Text style={styles.proofImgText}>📱 Mock Screenshot</Text>
+        </View>
+        <View style={styles.proofRules}>
+          <Text style={styles.proofRuleValid}>✅ App must be visibly open</Text>
+          <Text style={styles.proofRuleValid}>✅ Status bar must show today's time/date</Text>
+          <Text style={styles.proofRuleInvalid}>❌ No home screen screenshots</Text>
+          <Text style={styles.proofRuleInvalid}>❌ No duplicate screenshots</Text>
+        </View>
+      </View>
+
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Why it matters</Text>
+        <Text style={styles.cardDesc}>
+          Developers review your proofs. Valid proofs earn you Tokens. Invalid proofs are rejected, which hurts your Karma.
         </Text>
       </View>
 
@@ -358,7 +416,7 @@ export default function Onboarding() {
 
       <View style={styles.footer}>
         <TouchableOpacity style={styles.btnPrimary} onPress={handleNext}>
-          <Text style={styles.btnTextWhite}>FIND MY FIRST APP</Text>
+          <Text style={styles.btnTextWhite}>START EXPLORING</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -372,6 +430,7 @@ export default function Onboarding() {
         {step === 2 && renderStep2()}
         {step === 3 && renderStep3()}
         {step === 4 && renderStep4()}
+        {step === 5 && renderStep5()}
       </ScrollView>
     </View>
   );
@@ -514,6 +573,17 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     color: colors.text,
     fontWeight: '500',
   },
+  checkTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: colors.text,
+    marginBottom: 4,
+  },
+  checkTextSmall: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    lineHeight: 18,
+  },
 
   // Step 2 Specific
   profileCard: {
@@ -522,6 +592,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     padding: 20,
     borderWidth: 1,
     borderColor: colors.border,
+    marginBottom: 20,
   },
   profileTopRow: {
     flexDirection: 'row',
@@ -719,7 +790,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     marginTop: 24,
   },
   btnBlack: {
-    backgroundColor: colors.text,
+    backgroundColor: colors.primary,
     width: '100%',
     paddingVertical: 18,
     borderRadius: 12,
@@ -735,7 +806,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     marginBottom: 12,
   },
   btnTextWhite: {
-    color: colors.background,
+    color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '800',
     letterSpacing: 0.5,
@@ -744,6 +815,70 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontSize: 11,
     color: colors.textSecondary,
     letterSpacing: 1,
+    fontWeight: '600',
+  },
+
+  // New Step 4 Specific
+  intentCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.card,
+    borderRadius: 16,
+    padding: 20,
+    borderWidth: 2,
+    borderColor: isDark ? 'rgba(10, 132, 255, 0.3)' : '#C7E0FF',
+    marginBottom: 16,
+  },
+  intentEmoji: {
+    fontSize: 40,
+    marginRight: 16,
+  },
+  intentTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: colors.text,
+    marginBottom: 4,
+  },
+  intentDesc: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    lineHeight: 20,
+  },
+
+  // New Step 5 Specific
+  proofExampleCard: {
+    backgroundColor: colors.card,
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginBottom: 16,
+  },
+  proofImgPlaceholder: {
+    width: '100%',
+    height: 180,
+    backgroundColor: isDark ? '#2C2C2E' : '#E5E5EA',
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  proofImgText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.textSecondary,
+  },
+  proofRules: {
+    gap: 8,
+  },
+  proofRuleValid: {
+    fontSize: 14,
+    color: isDark ? '#32D74B' : '#34C759',
+    fontWeight: '600',
+  },
+  proofRuleInvalid: {
+    fontSize: 14,
+    color: isDark ? '#FF453A' : '#FF3B30',
     fontWeight: '600',
   },
 });

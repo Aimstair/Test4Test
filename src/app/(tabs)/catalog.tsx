@@ -3,7 +3,7 @@ import { Bell, Globe, Hexagon, Search, Sparkles, Star } from 'lucide-react-nativ
 import { useState } from 'react';
 import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useAuth } from '../../api/auth';
-import { useCatalog, useUserProfile } from '../../api/queries';
+import { useCatalog, useNotifications, useUserProfile } from '../../api/queries';
 import AppIcon from '../../components/AppIcon';
 import EmptyState from '../../components/EmptyState';
 import { useTheme } from '../../theme/ThemeContext';
@@ -14,18 +14,47 @@ export default function Catalog() {
   const styles = getStyles(colors, isDark);
   const { session } = useAuth();
   const { data: userProfile, isLoading: loadingProfile, refetch: refetchProfile } = useUserProfile(session?.user?.id);
+  const user = userProfile || { tokens: 0, karma: 0 };
   const { data: catalogData, isLoading: loadingCatalog, refetch: refetchCatalog } = useCatalog();
 
-  const user = userProfile || { tokens: 0, karma: 0 };
+  const [filter, setFilter] = useState<'Boosted' | 'All'>('Boosted');
+
+  const { data: notifications } = useNotifications(session?.user?.id);
+  const unreadCount = (notifications || []).filter((n: any) => !n.is_read).length;
+
   const catalog = (catalogData || []).filter((app: any, index: number, self: any[]) => {
-    if (app.active === false) return false;
-    if (app.expires_at && new Date(app.expires_at) < new Date()) return false;
+    if (app.active === false || app.banned === true) return false;
+    const isUnlimited = app.app_type !== 'Production' && (app.owner?.subscription_tier === 'Pro' || app.owner?.subscription_tier === 'Pro+');
+
+    let effectiveExpiresAt = app.expires_at ? new Date(app.expires_at) : null;
+    if (!effectiveExpiresAt && app.created_at) {
+      let days = 14;
+      if (app.tier === 'Pro') days = 20;
+      if (app.tier === 'Pro+') days = 30;
+      effectiveExpiresAt = new Date(app.created_at);
+      effectiveExpiresAt.setDate(effectiveExpiresAt.getDate() + days);
+    }
+
+    if (!isUnlimited && effectiveExpiresAt && effectiveExpiresAt < new Date()) return false;
+
+    if (filter === 'Boosted') {
+      if (!app.boost_ends_at || new Date(app.boost_ends_at) <= new Date()) return false;
+    }
 
     // Check if tester limit is reached
     const activeTesters = new Set(app.contracts?.filter((c: any) => c.status === 'active').map((c: any) => c.tester_id)).size || 0;
     if (activeTesters >= (app.tester_limit || 10)) return false;
 
     return index === self.findIndex((a) => a.id === app.id);
+  }).sort((a: any, b: any) => {
+    const aBoosted = a.boost_ends_at && new Date(a.boost_ends_at) > new Date();
+    const bBoosted = b.boost_ends_at && new Date(b.boost_ends_at) > new Date();
+
+    if (aBoosted && !bBoosted) return -1;
+    if (!aBoosted && bBoosted) return 1;
+
+    // Sort by developer karma (descending)
+    return (b.owner?.karma || 0) - (a.owner?.karma || 0);
   });
 
   const [refreshing, setRefreshing] = useState(false);
@@ -42,7 +71,7 @@ export default function Catalog() {
   if (loadingProfile || loadingCatalog) {
     return (
       <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" color="#0A84FF" />
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
@@ -67,7 +96,7 @@ export default function Catalog() {
           </View>
           <TouchableOpacity style={styles.iconBtn} onPress={() => router.push('/notifications')}>
             <Bell size={20} color={colors.text} />
-            <View style={styles.badge} />
+            {unreadCount > 0 && <View style={styles.badge} />}
           </TouchableOpacity>
         </View>
       </View>
@@ -83,8 +112,23 @@ export default function Catalog() {
         />
       </View>
 
+      <View style={styles.segmentControl}>
+        <TouchableOpacity
+          style={[styles.segmentBtn, filter === 'Boosted' && styles.segmentBtnActive]}
+          onPress={() => setFilter('Boosted')}
+        >
+          <Text style={[styles.segmentBtnText, filter === 'Boosted' && styles.segmentBtnTextActive]}>Boosted 🔥</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.segmentBtn, filter === 'All' && styles.segmentBtnActive]}
+          onPress={() => setFilter('All')}
+        >
+          <Text style={[styles.segmentBtnText, filter === 'All' && styles.segmentBtnTextActive]}>All Apps</Text>
+        </TouchableOpacity>
+      </View>
+
       <View style={styles.filterRow}>
-        <Text style={styles.filterText}>SORTED BY DEVELOPER KARMA</Text>
+        <Text style={styles.filterText}>{filter === 'Boosted' ? 'PROMOTED APPS' : 'SORTED BY DEVELOPER KARMA'}</Text>
         <Text style={styles.filterText}>{catalog.length} APPS</Text>
       </View>
 
@@ -104,9 +148,10 @@ export default function Catalog() {
       )}
 
       {catalog.map((app) => {
+        const isNew = new Date(app.created_at).getTime() > new Date().getTime() - 24 * 60 * 60 * 1000;
         const avgRating = app.reviews?.length
           ? (app.reviews.reduce((acc: number, r: any) => acc + r.rating, 0) / app.reviews.length).toFixed(1)
-          : 'New';
+          : isNew ? 'New' : '0';
 
         return (
           <TouchableOpacity
@@ -121,8 +166,25 @@ export default function Catalog() {
             <View style={styles.appInfo}>
               <View style={styles.appTitleRow}>
                 <Text style={styles.appName}>{app.name}</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  {app.boost_ends_at && new Date(app.boost_ends_at) > new Date() && (
+                    <View style={{ backgroundColor: 'rgba(255, 149, 0, 0.1)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, marginLeft: 6 }}>
+                      <Text style={{ fontSize: 9, fontWeight: '800', color: '#FF9500' }}>🔥</Text>
+                    </View>
+                  )}
+                  {app.app_type === 'Production' && (
+                    <View style={{ backgroundColor: 'rgba(52, 199, 89, 0.1)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, marginLeft: 6 }}>
+                      <Text style={{ fontSize: 9, fontWeight: '800', color: '#34C759' }}>⭐</Text>
+                    </View>
+                  )}
+                </View>
+              </View>
+              <Text style={styles.appBlurb} numberOfLines={1}>{app.blurb}</Text>
+
+              <View style={styles.appTags}>
                 <View style={[
                   styles.tierBadge,
+                  { marginRight: 6 },
                   app.tier === 'Pro+' && styles.tierBadgeBlack
                 ]}>
                   <Text style={[
@@ -132,12 +194,10 @@ export default function Catalog() {
                     {app.tier.toUpperCase()}
                   </Text>
                 </View>
-              </View>
-              <Text style={styles.appBlurb} numberOfLines={1}>{app.blurb}</Text>
-
-              <View style={styles.appTags}>
                 <View style={styles.tagBlue}>
-                  <Text style={styles.tagBlueText}>{app.bounty} tokens</Text>
+                  <Text style={styles.tagBlueText}>
+                    {app.boost_ends_at && new Date(app.boost_ends_at) > new Date() ? app.bounty + 10 : app.bounty} tokens
+                  </Text>
                 </View>
                 <View style={styles.tagOutline}>
                   <Star size={12} color={avgRating === 'New' ? colors.textSecondary : colors.text} fill={avgRating === 'New' ? "transparent" : colors.text} />
@@ -167,7 +227,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   content: {
     padding: 12,
-    paddingTop: 64,
+    paddingTop: 32,
     paddingBottom: 20,
   },
   topNav: {
@@ -317,6 +377,42 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     color: colors.textSecondary,
     fontSize: 13,
     marginBottom: 10,
+  },
+  appActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  segmentControl: {
+    flexDirection: 'row',
+    backgroundColor: colors.card,
+    borderRadius: 8,
+    padding: 4,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  segmentBtn: {
+    flex: 1,
+    paddingVertical: 8,
+    alignItems: 'center',
+    borderRadius: 6,
+  },
+  segmentBtnActive: {
+    backgroundColor: colors.background,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 1,
+    elevation: 2,
+  },
+  segmentBtnText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.textSecondary,
+  },
+  segmentBtnTextActive: {
+    color: colors.text,
   },
   appTags: {
     flexDirection: 'row',

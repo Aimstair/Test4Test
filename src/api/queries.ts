@@ -20,6 +20,25 @@ export const useUserProfile = (userId?: string) => {
   });
 };
 
+export const useUpdateAutoApprove = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ userId, autoApproveEnabled }: { userId: string, autoApproveEnabled: boolean }) => {
+      const { data, error } = await supabase
+        .from('users')
+        .update({ auto_approve_enabled: autoApproveEnabled })
+        .eq('id', userId)
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['user', variables.userId] });
+    },
+  });
+};
+
 export const useCatalog = () => {
   return useQuery({
     queryKey: ['apps'],
@@ -29,12 +48,52 @@ export const useCatalog = () => {
         .select(`
           *,
           contracts(id, status, tester_id),
-          owner:users(name, karma, avatar_url),
+          owner:users(name, karma, avatar_url, subscription_tier),
           reviews(rating)
         `)
         .order('created_at', { ascending: false });
       if (error) throw error;
-      return data;
+
+      // Enforce live app limits per owner dynamically
+      const ownerLiveCount: Record<string, number> = {};
+      
+      // Sort apps by priority:
+      // 1. Boosted (longer duration first)
+      // 2. Created at (older first)
+      const sortedApps = [...data].sort((a, b) => {
+        const aBoosted = a.boost_ends_at && new Date(a.boost_ends_at) > new Date();
+        const bBoosted = b.boost_ends_at && new Date(b.boost_ends_at) > new Date();
+        
+        if (aBoosted && !bBoosted) return -1;
+        if (!aBoosted && bBoosted) return 1;
+        
+        if (aBoosted && bBoosted) {
+          return new Date(b.boost_ends_at).getTime() - new Date(a.boost_ends_at).getTime();
+        }
+        
+        return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+      });
+
+      const processedApps = sortedApps.map(app => {
+        if (app.active === false) return app;
+
+        const limit = app.owner?.subscription_tier === 'Pro+' ? 10 : app.owner?.subscription_tier === 'Pro' ? 5 : 1;
+        
+        if (!ownerLiveCount[app.owner_id]) ownerLiveCount[app.owner_id] = 0;
+        
+        if (ownerLiveCount[app.owner_id] < limit) {
+          ownerLiveCount[app.owner_id]++;
+          return app;
+        } else {
+          // Exceeds limit, mark as inactive dynamically
+          return { ...app, active: false };
+        }
+      });
+      
+      // Restore original created_at descending sort
+      processedApps.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+      return processedApps;
     },
   });
 };
@@ -48,7 +107,8 @@ export const useAppMetrics = (appId?: string) => {
         .from('contracts')
         .select(`
           *,
-          contract_days(*)
+          contract_days(*),
+          tester:users(name, avatar_url)
         `)
         .eq('app_id', appId);
       if (error) throw error;
@@ -164,41 +224,80 @@ export const useApprovedProofsCount = (userId?: string) => {
 export const useReviewProof = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, status, developerId }: { id: string, status: 'approved' | 'rejected', developerId?: string }) => {
+    mutationFn: async ({ id, status, developerId, reason }: { id: string, status: 'approved' | 'rejected', developerId?: string, reason?: string }) => {
       const dbStatus = status === 'approved' ? 'done' : 'rejected';
+      const payload: any = { status: dbStatus };
+      if (status === 'rejected' && reason) {
+        payload.reject_reason = reason;
+      }
       const { data, error } = await supabase
         .from('contract_days')
-        .update({ status: dbStatus })
+        .update(payload)
         .eq('id', id)
         .select()
         .single();
       if (error) throw error;
 
-      // Get the contract info for notification
-      const { data: cData } = await supabase.from('contracts').select('tester_id').eq('id', data.contract_id).single();
+      // Get the contract info for notification and karma
+      const { data: cData } = await supabase.from('contracts').select('tester_id, apps(name, app_type)').eq('id', data.contract_id).single();
       
-      if (status === 'approved' && developerId) {
-        const { data: devData } = await supabase.from('users').select('karma').eq('id', developerId).single();
-        if (devData) {
-          await supabase.from('users').update({ karma: (devData.karma || 0) + 0.5 }).eq('id', developerId);
-          await supabase.from('transactions').insert([{
-            user_id: developerId,
-            type: 'karma_gain',
-            currency: 'karma',
-            amount: 0.5,
-            description: 'Approved daily proof'
-          }]);
+      if (status === 'approved') {
+        // Award developer karma
+        if (developerId) {
+          const { data: devData } = await supabase.from('users').select('karma').eq('id', developerId).single();
+          if (devData) {
+            await supabase.from('users').update({ karma: (devData.karma || 0) + 0.5 }).eq('id', developerId);
+            await supabase.from('transactions').insert([{
+              user_id: developerId,
+              type: 'karma_gain',
+              currency: 'karma',
+              amount: 0.5,
+              description: 'Approved daily proof'
+            }]);
+          }
+        }
+        
+        // Award tester karma
+        if (cData?.tester_id) {
+          const { data: testerData } = await supabase.from('users').select('karma').eq('id', cData.tester_id).single();
+          if (testerData) {
+            await supabase.from('users').update({ karma: (testerData.karma || 0) + 1 }).eq('id', cData.tester_id);
+            await supabase.from('transactions').insert([{
+              user_id: cData.tester_id,
+              type: 'karma_gain',
+              currency: 'karma',
+              amount: 1,
+              description: 'Proof Approved'
+            }]);
+          }
         }
       }
 
       if (cData) {
+        const notifMsg = status === 'approved' 
+          ? '⭐ Proof approved! You earned +1 Karma.' 
+          : `🛑 Action Required: Proof rejected${reason ? `: ${reason}` : '. Please upload a clearer image.'}`;
+
         sendNotification(
           cData.tester_id,
-          'Proof Reviewed',
-          `Your proof was ${status}.`,
+          status === 'approved' ? 'Proof Approved' : 'Proof Rejected',
+          notifMsg,
           'new_proof',
           developerId
         );
+
+        if (status === 'approved') {
+          const appName = (cData.apps as any)?.name || 'the app';
+          const numDays = (cData.apps as any)?.app_type === 'Production' ? 7 : 14;
+          if (data.day_number === numDays) {
+            sendNotification(
+              cData.tester_id,
+              'Contract Complete',
+              `🎉 You successfully tested ${appName}. Claim your tokens now!`,
+              'testing_finished'
+            );
+          }
+        }
       }
 
       return data;
@@ -214,7 +313,103 @@ export const useReviewProof = () => {
   });
 };
 
+export const useDisputeProof = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (proofId: string) => {
+      const { data, error } = await supabase
+        .from('contract_days')
+        .update({ disputed: true })
+        .eq('id', proofId)
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['contracts'] });
+      queryClient.invalidateQueries({ queryKey: ['proofQueue'] });
+    },
+  });
+};
+
+export const useAdminDisputes = () => {
+  return useQuery({
+    queryKey: ['adminDisputes'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('contract_days')
+        .select(`
+          *,
+          contract:contracts(
+            app:apps(name, owner:users(id, name, avatar_url)),
+            tester:users(id, name, avatar_url)
+          )
+        `)
+        .eq('disputed', true)
+        .eq('status', 'rejected')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+  });
+};
+
+export const useAdminResolveDispute = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ proofId, action, testerId, developerId }: { proofId: string, action: 'uphold' | 'overturn', testerId: string, developerId: string }) => {
+      if (action === 'overturn') {
+        // Tester wins: Set status to done, give tester +1 karma, penalize developer -5 karma
+        await supabase.from('contract_days').update({ status: 'done', disputed: false }).eq('id', proofId);
+        
+        const { data: testerData } = await supabase.from('users').select('karma').eq('id', testerId).single();
+        if (testerData) await supabase.from('users').update({ karma: (testerData.karma || 0) + 1 }).eq('id', testerId);
+        
+        const { data: devData } = await supabase.from('users').select('karma').eq('id', developerId).single();
+        if (devData) await supabase.from('users').update({ karma: (devData.karma || 0) - 5 }).eq('id', developerId);
+
+        sendNotification(testerId, 'Dispute Won', 'Admin overturned the rejection. +1 Karma.', 'new_proof');
+        sendNotification(developerId, 'Dispute Lost', 'Admin overturned your rejection. -5 Karma penalty.', 'new_proof');
+      } else {
+        // Developer wins: Un-dispute it, keep rejected
+        await supabase.from('contract_days').update({ disputed: false }).eq('id', proofId);
+        sendNotification(testerId, 'Dispute Lost', 'Admin upheld the rejection.', 'new_proof');
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['adminDisputes'] });
+    },
+  });
+};
+
 // --- Mutations ---
+
+export const useSubmitFinalSurvey = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ contractId, dayId, proofUrl, feedback }: { contractId: string, dayId: string, proofUrl?: string, feedback: { rating: number, bugs: string, general: string } }) => {
+      // 1. Upload proof for Day 14
+      if (proofUrl) {
+        await supabase.from('contract_days').update({ proof_image_url: proofUrl, status: 'pending' }).eq('id', dayId);
+      }
+      
+      // 2. Save feedback to the contract
+      const { data, error } = await supabase
+        .from('contracts')
+        .update({ feedback })
+        .eq('id', contractId)
+        .select()
+        .single();
+        
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['contracts'] });
+    },
+  });
+};
 
 export const useCreateApp = () => {
   const queryClient = useQueryClient();
@@ -241,16 +436,13 @@ export const useCreateApp = () => {
         }]);
       }
 
-      let expiresAtStr: string | null = null;
-      if (subscriptionTier !== 'Pro+') {
-        let days = 14;
-        if (appData.tier === 'Pro') days = 20;
-        if (appData.tier === 'Pro+') days = 30;
-        
-        const expiresAt = new Date();
-        expiresAt.setDate(expiresAt.getDate() + days);
-        expiresAtStr = expiresAt.toISOString();
-      }
+      let days = 14;
+      if (appData.tier === 'Pro') days = 20;
+      if (appData.tier === 'Pro+') days = 30;
+      
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + days);
+      const expiresAtStr = expiresAt.toISOString();
 
       // Insert app
       const { data, error } = await supabase.from('apps').insert([{ 
@@ -281,7 +473,7 @@ export const useCreateApp = () => {
 export const useRenewApp = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ appId, tier, tester_limit, bounty, tokenCost, owner_id, subscriptionTier }: { appId: string, tier: string, tester_limit: number, bounty: number, tokenCost: number, owner_id: string, subscriptionTier?: string }) => {
+    mutationFn: async ({ appId, tier, tester_limit, bounty, tokenCost, owner_id, subscriptionTier, app_type }: { appId: string, tier: string, tester_limit: number, bounty: number, tokenCost: number, owner_id: string, subscriptionTier?: string, app_type?: string }) => {
       if (tokenCost > 0) {
         const { data: user, error: userError } = await supabase.from('users').select('tokens').eq('id', owner_id).single();
         if (userError) throw userError;
@@ -300,23 +492,21 @@ export const useRenewApp = () => {
         }]);
       }
 
-      let expiresAtStr: string | null = null;
-      if (subscriptionTier !== 'Pro+') {
-        let days = 14;
-        if (tier === 'Pro') days = 20;
-        if (tier === 'Pro+') days = 30;
-        
-        const expiresAt = new Date();
-        expiresAt.setDate(expiresAt.getDate() + days);
-        expiresAtStr = expiresAt.toISOString();
-      }
+      let days = 14;
+      if (tier === 'Pro') days = 20;
+      if (tier === 'Pro+') days = 30;
+      
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + days);
+      const expiresAtStr = expiresAt.toISOString();
 
       const { data, error } = await supabase.from('apps').update({ 
         tier,
         tester_limit,
         bounty,
         active: true,
-        expires_at: expiresAtStr
+        expires_at: expiresAtStr,
+        app_type: app_type || 'Testing'
       }).eq('id', appId).select().single();
       
       if (error) {
@@ -427,10 +617,63 @@ export const useToggleAppStatus = () => {
   });
 };
 
+export const useBoostApp = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ appId, ownerId, days }: { appId: string, ownerId: string, days: number }) => {
+      const tokenCost = days * 20;
+      
+      // 1. Get user to check tokens
+      const { data: user, error: userError } = await supabase
+        .from('users')
+        .select('tokens')
+        .eq('id', ownerId)
+        .single();
+        
+      if (userError) throw userError;
+      if (!user || user.tokens < tokenCost) {
+        throw new Error(`Insufficient tokens. You need ${tokenCost} tokens to boost for ${days} days.`);
+      }
+
+      // 2. Deduct tokens
+      await supabase.from('users').update({ tokens: user.tokens - tokenCost }).eq('id', ownerId);
+
+      // 3. Log transaction
+      await supabase.from('transactions').insert([{
+        user_id: ownerId,
+        type: 'token_spend',
+        currency: 'tokens',
+        amount: -tokenCost,
+        description: `Boosted app for ${days} days`
+      }]);
+
+      // 4. Update app's boost_ends_at
+      const { data: appData } = await supabase.from('apps').select('boost_ends_at').eq('id', appId).single();
+      const currentBoostEnd = appData?.boost_ends_at ? new Date(appData.boost_ends_at) : new Date();
+      const baseDate = currentBoostEnd > new Date() ? currentBoostEnd : new Date();
+      baseDate.setDate(baseDate.getDate() + days);
+
+      const { data, error } = await supabase
+        .from('apps')
+        .update({ boost_ends_at: baseDate.toISOString() })
+        .eq('id', appId)
+        .select()
+        .single();
+        
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['apps'] });
+      queryClient.invalidateQueries({ queryKey: ['user', variables.ownerId] });
+    },
+  });
+};
+
 export const useStartContract = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ appId, testerId, proofUrl }: { appId: string; testerId: string; proofUrl?: string }) => {
+    mutationFn: async ({ appId, testerId, proofUrl, rateProofUrl }: { appId: string; testerId: string; proofUrl?: string; rateProofUrl?: string }) => {
       // Prevent duplicate active contracts for the same app+tester
       const { data: existing } = await supabase
         .from('contracts')
@@ -444,17 +687,39 @@ export const useStartContract = () => {
         throw new Error('You already have an active test contract for this app.');
       }
 
+      // Snapshot bonus_bounty if app is currently boosted
+      const { data: appData } = await supabase.from('apps').select('boost_ends_at, bounty, name, app_type, owner_id, tester_limit, tier').eq('id', appId).single();
+      const isBoosted = appData?.boost_ends_at && new Date(appData.boost_ends_at) > new Date();
+      const bonusBounty = isBoosted ? 10 : 0;
+
       // Create contract (no token escrow — tokens are only earned, never locked)
       const { data: contract, error } = await supabase
         .from('contracts')
-        .insert([{ app_id: appId, tester_id: testerId }])
+        .insert([{ app_id: appId, tester_id: testerId, bonus_bounty: bonusBounty, rate_proof_url: rateProofUrl }])
         .select()
         .single();
       
       if (error) throw error;
 
-      // Create 14 contract days
-      const days = Array.from({ length: 14 }).map((_, i) => ({
+      // Payout Tokens instantly on "Claim"
+      const totalReward = (appData?.bounty || 0) + bonusBounty;
+      if (totalReward > 0) {
+        const { data: testerData } = await supabase.from('users').select('tokens').eq('id', testerId).single();
+        if (testerData) {
+          await supabase.from('users').update({ tokens: (testerData.tokens || 0) + totalReward }).eq('id', testerId);
+          await supabase.from('transactions').insert([{
+            user_id: testerId,
+            type: 'token_gain',
+            currency: 'tokens',
+            amount: totalReward,
+            description: `Testing Onboarding for ${appData?.name || 'app'}`
+          }]);
+        }
+      }
+
+      // Generate contract days (14 for Testing, 7 for Production)
+      const numDays = appData?.app_type === 'Production' ? 7 : 14;
+      const days = Array.from({ length: numDays }).map((_, i) => ({
         contract_id: contract.id,
         day_number: i + 1,
         date: new Date(Date.now() + i * 86400000).toISOString().split('T')[0],
@@ -465,25 +730,7 @@ export const useStartContract = () => {
       const { error: daysError } = await supabase.from('contract_days').insert(days);
       if (daysError) throw daysError;
 
-      const { data: appData } = await supabase.from('apps').select('owner_id, name, tester_limit, tier').eq('id', appId).single();
       if (appData) {
-        // Signup Bonus
-        let signupBonus = 5;
-        if (appData.tier === 'Pro') signupBonus = 10;
-        if (appData.tier === 'Pro+') signupBonus = 20;
-
-        const { data: user } = await supabase.from('users').select('tokens').eq('id', testerId).single();
-        if (user) {
-          await supabase.from('users').update({ tokens: (user.tokens || 0) + signupBonus }).eq('id', testerId);
-          await supabase.from('transactions').insert([{
-            user_id: testerId,
-            type: 'token_gain',
-            currency: 'token',
-            amount: signupBonus,
-            description: `Joined test: ${appData.name}`
-          }]);
-        }
-
         // Notifications
         sendNotification(appData.owner_id, 'New Tester', `A new tester joined ${appData.name}.`, 'new_tester', testerId);
         
@@ -518,20 +765,7 @@ export const useUploadProof = () => {
         .single();
       if (error) throw error;
 
-      // Award +1 karma to the tester for daily check-in
-      if (testerId) {
-        const { data: userData } = await supabase.from('users').select('karma').eq('id', testerId).single();
-        if (userData) {
-          await supabase.from('users').update({ karma: (userData.karma || 0) + 1 }).eq('id', testerId);
-          await supabase.from('transactions').insert([{
-            user_id: testerId,
-            type: 'karma_gain',
-            currency: 'karma',
-            amount: 1,
-            description: `Daily Check-in Bonus`
-          }]);
-        }
-      }
+      // Status updated to verified. Karma will be awarded when approved by developer.
 
       const { data: contract } = await supabase.from('contracts').select('app_id, apps(owner_id)').eq('id', contractId).single();
       if (contract && (contract.apps as any)?.owner_id) {
@@ -557,9 +791,19 @@ export const useForfeitContract = () => {
         .from('contracts')
         .update({ status: 'failed' })
         .eq('id', contractId)
-        .select()
+        .select('*, apps(name, owner_id)')
         .single();
       if (error) throw error;
+
+      if ((data.apps as any)?.owner_id) {
+        sendNotification(
+          (data.apps as any).owner_id, 
+          'Tester Dropped Off', 
+          `Notice: A tester dropped off from ${(data.apps as any).name}.`, 
+          'testing_finished'
+        );
+      }
+
       return data;
     },
     onSuccess: () => {
@@ -847,3 +1091,62 @@ export const useUserStats = (userId?: string, karma?: number) => {
   });
 };
 
+// --- Admin Queries ---
+
+export const useAdminApps = () => {
+  return useQuery({
+    queryKey: ['admin_apps'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('apps')
+        .select(`
+          *,
+          owner:users(name, karma, role)
+        `)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+  });
+};
+
+export const useAdminToggleAppStatus = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ appId, banned }: { appId: string, banned: boolean }) => {
+      // If banning, also set active to false. If unbanning, leave active as is.
+      const payload: any = { banned };
+      if (banned) payload.active = false;
+      
+      const { data, error } = await supabase
+        .from('apps')
+        .update(payload)
+        .eq('id', appId)
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin_apps'] });
+      queryClient.invalidateQueries({ queryKey: ['apps'] });
+    },
+  });
+};
+
+export const useAdminDeleteApp = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (appId: string) => {
+      const { error } = await supabase
+        .from('apps')
+        .delete()
+        .eq('id', appId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin_apps'] });
+      queryClient.invalidateQueries({ queryKey: ['apps'] });
+    },
+  });
+};

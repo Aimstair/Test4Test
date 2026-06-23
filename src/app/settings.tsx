@@ -1,4 +1,3 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import { Bell, ChevronLeft, ChevronRight, CreditCard, HelpCircle, Monitor, Receipt, ShieldAlert, ShieldCheck } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
@@ -7,21 +6,22 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../api/auth';
 import { useUserProfile } from '../api/queries';
 import { useTheme } from '../theme/ThemeContext';
+import { supabase } from '../lib/supabase';
 
 export default function Settings() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { session } = useAuth();
   const { data: userProfile } = useUserProfile(session?.user?.id);
-  const { theme, setTheme, colors } = useTheme();
+  const { theme, setTheme, colors, isDark } = useTheme();
 
-  const styles = getStyles(colors);
+  const styles = getStyles(colors, isDark);
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
-          <ChevronLeft size={24} color="#000" />
+          <ChevronLeft size={24} color={colors.text} />
           <Text style={styles.backText}>Me</Text>
         </TouchableOpacity>
       </View>
@@ -30,7 +30,7 @@ export default function Settings() {
         <Text style={styles.sectionTitle}>APPEARANCE</Text>
         <View style={styles.card}>
           <View style={styles.cardHeader}>
-            <Monitor size={20} color="#8E8E93" />
+            <Monitor size={20} color={colors.textSecondary} />
             <Text style={styles.cardTitle}>Interface theme</Text>
           </View>
           <View style={styles.themeToggleRow}>
@@ -59,13 +59,13 @@ export default function Settings() {
         <View style={[styles.card, { padding: 0 }]}>
           <TouchableOpacity style={styles.listItem} onPress={() => router.push('/settings/notifications')}>
             <View style={styles.iconContainer}>
-              <Bell size={20} color="#8E8E93" />
+              <Bell size={20} color={colors.textSecondary} />
             </View>
             <View style={styles.rowTextCol}>
               <Text style={styles.rowTitle}>Notification Preferences</Text>
               <Text style={styles.rowSub}>Manage app and system alerts</Text>
             </View>
-            <ChevronRight size={16} color="#C7C7CC" />
+            <ChevronRight size={16} color={colors.textTertiary} />
           </TouchableOpacity>
         </View>
 
@@ -73,20 +73,20 @@ export default function Settings() {
         <View style={[styles.card, { padding: 0 }]}>
           <TouchableOpacity style={styles.listItem} onPress={() => router.push('/pricing')}>
             <View style={styles.iconContainer}>
-              <CreditCard size={20} color="#8E8E93" />
+              <CreditCard size={20} color={colors.textSecondary} />
             </View>
             <View style={styles.rowTextCol}>
               <Text style={styles.rowTitle}>Buy test tokens</Text>
               <Text style={styles.rowSub}>Add balance for bounties and listings</Text>
             </View>
-            <ChevronRight size={16} color="#C7C7CC" />
+            <ChevronRight size={16} color={colors.textTertiary} />
           </TouchableOpacity>
 
           <View style={styles.divider} />
 
           <TouchableOpacity style={styles.listItem}>
             <View style={styles.iconContainer}>
-              <Receipt size={20} color="#8E8E93" />
+              <Receipt size={20} color={colors.textSecondary} />
             </View>
             <View style={styles.rowTextCol}>
               <Text style={styles.rowTitle}>Invoices</Text>
@@ -100,7 +100,7 @@ export default function Settings() {
         <View style={styles.card}>
           <TouchableOpacity style={styles.rowCenter}>
             <View style={styles.iconContainer}>
-              <ShieldCheck size={20} color="#8E8E93" />
+              <ShieldCheck size={20} color={colors.textSecondary} />
             </View>
             <View style={styles.rowTextCol}>
               <Text style={styles.rowTitle}>Developer verification</Text>
@@ -113,40 +113,26 @@ export default function Settings() {
         <View style={styles.card}>
           <TouchableOpacity style={styles.rowCenter} onPress={() => router.push('/support')}>
             <View style={styles.iconContainer}>
-              <HelpCircle size={20} color="#8E8E93" />
+              <HelpCircle size={20} color={colors.textSecondary} />
             </View>
             <View style={styles.rowTextCol}>
               <Text style={styles.rowTitle}>Help & Support</Text>
               <Text style={styles.rowSub}>Report bugs, feedback, and view tickets</Text>
             </View>
-            <ChevronRight size={16} color="#C7C7CC" />
+            <ChevronRight size={16} color={colors.textTertiary} />
           </TouchableOpacity>
         </View>
 
-        {userProfile?.role === 'admin' && (
-          <>
-            <Text style={styles.sectionTitle}>ADMINISTRATION</Text>
-            <View style={styles.card}>
-              <TouchableOpacity style={styles.rowCenter} onPress={() => router.push('/admin')}>
-                <View style={styles.iconContainer}>
-                  <ShieldAlert size={20} color="#8E8E93" />
-                </View>
-                <View style={styles.rowTextCol}>
-                  <Text style={styles.rowTitle}>Admin Panel</Text>
-                  <Text style={styles.rowSub}>Manage users, tickets, and reports</Text>
-                </View>
-                <ChevronRight size={16} color="#C7C7CC" />
-              </TouchableOpacity>
-            </View>
-          </>
-        )}
+        {/* Removed duplicate Admin Panel, as it's available in the Me (Profile) screen */}
+
+
 
       </ScrollView>
     </View>
   );
 }
 
-const getStyles = (colors: any) => StyleSheet.create({
+const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
@@ -155,7 +141,7 @@ const getStyles = (colors: any) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 12,
-    paddingTop: 64,
+    paddingTop: 48,
     paddingBottom: 16,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,

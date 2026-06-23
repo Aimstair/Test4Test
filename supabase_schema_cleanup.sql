@@ -19,14 +19,14 @@ BEGIN
       AND date < CURRENT_DATE
   LOOP
     -- Extract the file name from the public URL
-    -- Assumes the URL format ends with /public/proofs/<filename>
-    file_name := split_part(proof.proof_image_url, 'public/proofs/', 2);
+    -- Assumes the URL format ends with /public-assets/proofs/<filename>
+    file_name := split_part(proof.proof_image_url, 'public-assets/proofs/', 2);
     
     IF file_name IS NOT NULL AND file_name != '' THEN
       -- Delete the object from Supabase Storage metadata table
       -- Supabase automatically listens to deletes on this table and removes the physical file in the background
       DELETE FROM storage.objects 
-      WHERE bucket_id = 'proofs' AND name = file_name;
+      WHERE bucket_id = 'public-assets' AND name = 'proofs/' || file_name;
     END IF;
 
     -- Nullify the URL in the database to prevent broken image links in the UI

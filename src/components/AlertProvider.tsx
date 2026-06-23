@@ -129,14 +129,14 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   button: {
     flex: 1,
-    backgroundColor: colors.text,
+    backgroundColor: colors.primary,
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },
   buttonText: {
-    color: colors.background,
+    color: '#FFFFFF',
     fontSize: 15,
     fontWeight: '700',
   },

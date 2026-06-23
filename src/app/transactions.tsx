@@ -92,7 +92,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     backgroundColor: colors.background,
   },
   header: {
-    paddingTop: 60,
+    paddingTop: 48,
     paddingHorizontal: 12,
     paddingBottom: 16,
     backgroundColor: colors.background,

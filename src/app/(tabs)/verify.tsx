@@ -2,7 +2,7 @@ import { Check, ChevronLeft, ChevronRight, Flag, Image as ImageIcon, X } from 'l
 import { useRef, useState } from 'react';
 import { ActivityIndicator, Animated, Image, Modal, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useAuth } from '../../api/auth';
-import { useApprovedProofsCount, useProofQueue, useReviewProof, useUserProfile } from '../../api/queries';
+import { useApprovedProofsCount, useProofQueue, useReviewProof, useUserProfile, useUpdateAutoApprove } from '../../api/queries';
 import EmptyState from '../../components/EmptyState';
 import { useTheme } from '../../theme/ThemeContext';
 
@@ -15,6 +15,7 @@ export default function Verify() {
   const { data: proofQueueData, isLoading, refetch: refetchQueue } = useProofQueue(session?.user?.id);
   const { data: approvedCountData, refetch: refetchApproved } = useApprovedProofsCount(session?.user?.id);
   const { mutate: reviewProof } = useReviewProof();
+  const { mutate: updateAutoApprove } = useUpdateAutoApprove();
 
   const proofQueue = proofQueueData || [];
 
@@ -50,7 +51,7 @@ export default function Verify() {
   };
 
   const handleReview = (id: string, status: 'approved' | 'rejected', reason?: string) => {
-    reviewProof({ id, status, developerId: session?.user?.id }, {
+    reviewProof({ id, status, developerId: session?.user?.id, reason }, {
       onSuccess: () => {
         if (status === 'approved') {
           displayToast('+0.5 Karma earned! ⭐ Proof approved.', 'success');
@@ -64,17 +65,24 @@ export default function Verify() {
     });
   };
 
-  const [autoApproveEnabled, setAutoApproveEnabled] = useState(false);
+  const autoApproveEnabled = userProfile?.auto_approve_enabled || false;
   const isProOrAbove = userProfile?.subscription_tier === 'Pro' || userProfile?.subscription_tier === 'Pro+' || userProfile?.tier === 'pro' || userProfile?.tier === 'pro_plus';
 
   const toggleAutoApprove = () => {
     if (!isProOrAbove) return;
-    setAutoApproveEnabled(!autoApproveEnabled);
-    if (!autoApproveEnabled) {
-      displayToast('Auto-Approve enabled. Proofs will be approved at end of day.', 'success');
-    } else {
-      displayToast('Auto-Approve disabled.', 'success');
-    }
+    const newState = !autoApproveEnabled;
+    updateAutoApprove({ userId: session?.user?.id as string, autoApproveEnabled: newState }, {
+      onSuccess: () => {
+        if (newState) {
+          displayToast('Auto-Approve enabled. Proofs will be approved at 23:55 UTC.', 'success');
+        } else {
+          displayToast('Auto-Approve disabled.', 'success');
+        }
+      },
+      onError: (err: any) => {
+        displayToast(`Failed to update setting: ${err.message}`, 'error');
+      }
+    });
   };
 
   // Flag Modal State
@@ -119,15 +127,16 @@ export default function Verify() {
   if (isLoading) {
     return (
       <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" color="#0A84FF" />
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.content}
+    <View style={styles.container}>
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={styles.content}
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
       }
@@ -315,6 +324,7 @@ export default function Verify() {
           )}
         </View>
       </Modal>
+      </ScrollView>
 
       {/* Toast */}
       {showToast && (
@@ -327,8 +337,7 @@ export default function Verify() {
           <Text style={styles.toastText}>{toastMessage}</Text>
         </Animated.View>
       )}
-
-    </ScrollView>
+    </View>
   );
 }
 
@@ -339,7 +348,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   content: {
     padding: 12,
-    paddingTop: 80,
+    paddingTop: 48,
     paddingBottom: 20,
   },
   headerTitle: {
@@ -399,13 +408,13 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     backgroundColor: colors.border,
   },
   btnBlack: {
-    backgroundColor: colors.text,
+    backgroundColor: colors.primary,
     paddingVertical: 12,
     borderRadius: 12,
     alignItems: 'center',
   },
   btnTextWhite: {
-    color: colors.background,
+    color: '#FFFFFF',
     fontFamily: 'monospace',
     fontWeight: '800',
     fontSize: 12,
@@ -628,7 +637,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   btnApprove: {
     flex: 1,
-    backgroundColor: colors.text,
+    backgroundColor: colors.primary,
     borderColor: colors.text,
     flexDirection: 'row',
     gap: 8,

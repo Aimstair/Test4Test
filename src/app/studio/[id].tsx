@@ -1,10 +1,10 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Modal, RefreshControl, Image } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ChevronLeft, Users, Activity, AlertTriangle, TrendingUp, Download, Star, X, Info, Power, PowerOff } from 'lucide-react-native';
+import { Activity, AlertTriangle, ChevronLeft, Download, Info, Power, PowerOff, Star, TrendingUp, Users, X, MessageSquare } from 'lucide-react-native';
+import React from 'react';
+import { ActivityIndicator, Image, Modal, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View, Linking } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useCatalog, useAppMetrics, useReviews, useToggleAppStatus, useUserProfile } from '../../api/queries';
 import { useAuth } from '../../api/auth';
+import { useAppMetrics, useCatalog, useReviews, useToggleAppStatus, useUserProfile, useBoostApp } from '../../api/queries';
 import { useCustomAlert } from '../../components/AlertProvider';
 import AppIcon from '../../components/AppIcon';
 import { useTheme } from '../../theme/ThemeContext';
@@ -15,15 +15,19 @@ export default function StudioDetail() {
   const insets = useSafeAreaInsets();
   const { colors, isDark } = useTheme();
   const styles = getStyles(colors, isDark);
-  
+
   const [showComingSoon, setShowComingSoon] = React.useState(false);
   const [selectedDay, setSelectedDay] = React.useState<{ date: string, installs: number, checkins: number } | null>(null);
+
+  const [boostModalVisible, setBoostModalVisible] = React.useState(false);
+  const [boostDays, setBoostDays] = React.useState(3);
 
   const { session } = useAuth();
   const { showAlert } = useCustomAlert();
   const { data: userProfile, refetch: refetchProfile } = useUserProfile(session?.user?.id);
   const { data: catalog, isLoading, refetch: refetchCatalog } = useCatalog();
   const { mutate: toggleStatus, isPending: isToggling } = useToggleAppStatus();
+  const { mutate: boostApp, isPending: isBoosting } = useBoostApp();
 
   const app = catalog?.find((a: any) => a.id === id);
 
@@ -44,7 +48,7 @@ export default function StudioDetail() {
   if (isLoading) {
     return (
       <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" color="#0A84FF" />
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
@@ -60,19 +64,50 @@ export default function StudioDetail() {
   let activeAppLimit = 1;
   if (userProfile?.subscription_tier === 'Pro') activeAppLimit = 5;
   if (userProfile?.subscription_tier === 'Pro+') activeAppLimit = 10;
-  
+
   const myApps = catalog?.filter((a: any) => a.owner_id === session?.user?.id) || [];
   const activeAppsCount = myApps.filter((a: any) => a.active !== false).length;
 
-  const isExpired = app.expires_at ? new Date(app.expires_at) < new Date() : false;
-  const daysRemaining = app.expires_at ? Math.max(0, Math.ceil((new Date(app.expires_at).getTime() - new Date().getTime()) / (1000 * 3600 * 24))) : 0;
+  const isUnlimited = app.app_type !== 'Production' && (userProfile?.subscription_tier === 'Pro' || userProfile?.subscription_tier === 'Pro+');
+  
+  let effectiveExpiresAt = app.expires_at ? new Date(app.expires_at) : null;
+  if (!effectiveExpiresAt && app.created_at) {
+    let days = 14;
+    if (app.tier === 'Pro') days = 20;
+    if (app.tier === 'Pro+') days = 30;
+    effectiveExpiresAt = new Date(app.created_at);
+    effectiveExpiresAt.setDate(effectiveExpiresAt.getDate() + days);
+  }
+
+  const isExpired = !isUnlimited && effectiveExpiresAt ? effectiveExpiresAt < new Date() : false;
+  const daysRemaining = effectiveExpiresAt ? Math.max(0, Math.ceil((effectiveExpiresAt.getTime() - new Date().getTime()) / (1000 * 3600 * 24))) : 0;
+  const isBoosted = app.boost_ends_at && new Date(app.boost_ends_at) > new Date();
+
+  const handleBoost = () => {
+    if (app.active === false) {
+      showAlert('App Offline', 'You cannot boost an app that is offline. Please activate it first.');
+      return;
+    }
+    boostApp({ appId: app.id, ownerId: session?.user?.id as string, days: boostDays }, {
+      onSuccess: () => {
+        showAlert('App Boosted! 🔥', `Your app is now promoted in the catalog.`);
+        setBoostModalVisible(false);
+      },
+      onError: (err: any) => showAlert('Error', err.message)
+    });
+  };
 
   const handleToggleActive = () => {
+    if (app.active === false && app.banned === true) {
+      showAlert('App Banned', 'This app has been banned for violating our terms of service and cannot be activated.');
+      return;
+    }
+
     if (app.active === false && activeAppsCount >= activeAppLimit) {
       showAlert('Limit Reached', `Your ${userProfile?.subscription_tier || 'Basic'} tier only allows ${activeAppLimit} active app${activeAppLimit === 1 ? '' : 's'}.`);
       return;
     }
-    
+
     toggleStatus({ appId: app.id, active: app.active === false ? true : false }, {
       onError: (err: any) => showAlert('Error', err.message)
     });
@@ -90,13 +125,13 @@ export default function StudioDetail() {
   const yesterdayStr = yesterdayDate.toISOString().split('T')[0];
 
   const active24H = metrics?.reduce((acc, c: any) => {
-    const verifiedRecent = c.contract_days?.some((d: any) => 
+    const verifiedRecent = c.contract_days?.some((d: any) =>
       d.status === 'verified' && (d.date === todayStr || d.date === yesterdayStr)
     );
     return acc + (verifiedRecent ? 1 : 0);
   }, 0) || 0;
 
-  const avgRating = reviews?.length 
+  const avgRating = reviews?.length
     ? (reviews.reduce((acc: number, r: any) => acc + r.rating, 0) / reviews.length).toFixed(1)
     : '0.0';
 
@@ -105,29 +140,47 @@ export default function StudioDetail() {
   metrics?.forEach((c: any) => c.contract_days?.forEach((d: any) => {
     if (d.date) datesSet.add(d.date);
   }));
-  
+
   // Create a continuous 14-day window ending today
   const last14Days = Array.from({ length: 14 }).map((_, i) => {
     const d = new Date();
     d.setDate(d.getDate() - (13 - i));
     return d.toISOString().split('T')[0];
   });
-  
+
   // Merge actual data dates with the 14-day window
   last14Days.forEach(d => datesSet.add(d));
   const sortedDates = Array.from(datesSet).sort().slice(-14);
-  
+
   const chartData = sortedDates.map(dateStr => {
     let checkins = 0;
     let installs = 0;
-    metrics?.forEach((c: any) => {
-      const day = c.contract_days?.find((d: any) => d.date === dateStr);
-      if (day && day.status === 'verified') checkins++;
-      const createdDateStr = new Date(c.created_at).toISOString().split('T')[0];
-      if (createdDateStr <= dateStr && c.status !== 'failed') {
-         installs++;
-      }
-    });
+    
+    // Future dates should have empty bars
+    if (dateStr <= todayStr) {
+      metrics?.forEach((c: any) => {
+        const day = c.contract_days?.find((d: any) => d.date === dateStr);
+        if (day && (day.status === 'verified' || day.status === 'done' || day.status === 'pending')) {
+          checkins++;
+        }
+
+        // Rolling active installs: Was the contract alive and valid on this day?
+        const startD = new Date(c.start_date || c.created_at).toISOString().split('T')[0];
+        const endD = new Date(c.start_date || c.created_at);
+        endD.setDate(endD.getDate() + 14);
+        const endStr = endD.toISOString().split('T')[0];
+
+        if (dateStr >= startD && dateStr < endStr) {
+          if (c.status === 'active' || c.status === 'done') {
+            installs++;
+          } else if (c.status === 'failed') {
+            if (day && day.status !== 'missed' && day.status !== 'future') {
+              installs++;
+            }
+          }
+        }
+      });
+    }
     return { date: dateStr, installs, checkins };
   });
 
@@ -148,13 +201,13 @@ export default function StudioDetail() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView 
+      <ScrollView
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom > 0 ? insets.bottom + 120 : 120 }]}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
-        
+
         {/* App Header Card */}
         <View style={styles.appHeaderCard}>
           <AppIcon url={app.icon_url} size={64} style={styles.appIconBox} />
@@ -174,8 +227,13 @@ export default function StudioDetail() {
                   <Text style={{ fontSize: 9, fontWeight: '800', color: colors.textSecondary }}>OFFLINE</Text>
                 </View>
               )}
+              {isBoosted && (
+                <View style={{ backgroundColor: 'rgba(255, 149, 0, 0.1)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                  <Text style={{ fontSize: 9, fontWeight: '800', color: '#FF9500' }}>🔥 BOOSTED</Text>
+                </View>
+              )}
             </View>
-            <Text style={styles.appSub}>{app.tier} tier · {app.tester_limit} testers{isExpired ? ' · Expired' : app.expires_at ? ` · Expires in ${daysRemaining}d` : ' · Unlimited'}</Text>
+            <Text style={styles.appSub}>{app.tier} tier · {app.tester_limit} testers{isExpired ? ' · Expired' : isUnlimited ? ' · Unlimited' : effectiveExpiresAt ? ` · Expires in ${daysRemaining}d` : ' · Unlimited'}</Text>
             <View style={styles.ratingRow}>
               <Star size={14} color={colors.primary} fill={colors.primary} />
               <Text style={styles.ratingText}>{avgRating} · <Text style={styles.ratingSub}>{reviews?.length || 0} reviews</Text></Text>
@@ -225,115 +283,186 @@ export default function StudioDetail() {
         </View>
 
         {isExpired ? (
-          <TouchableOpacity 
-            style={[styles.toggleBtn, { backgroundColor: colors.primary, borderColor: colors.primary }]} 
-            onPress={() => router.push(`/studio/new?renewAppId=${app.id}`)}
-          >
-            <Power size={18} color="#000" />
-            <Text style={[styles.toggleBtnText, { color: '#000' }]}>
-              RENEW LISTING
-            </Text>
-          </TouchableOpacity>
-        ) : (
-          <TouchableOpacity 
-            style={[styles.toggleBtn, app.active !== false ? styles.toggleBtnActive : styles.toggleBtnInactive]} 
-            onPress={handleToggleActive}
-            disabled={isToggling}
-          >
-            {isToggling ? (
-              <ActivityIndicator size="small" color={app.active !== false ? colors.danger : colors.primary} />
-            ) : (
-              <>
-                {app.active !== false ? <PowerOff size={18} color={colors.danger} /> : <Power size={18} color={colors.primary} />}
-                <Text style={[styles.toggleBtnText, app.active !== false ? { color: colors.danger } : { color: colors.primary }]}>
-                  {app.active !== false ? 'DELIST APP' : 'ACTIVATE APP'}
+          <View style={{ gap: 12 }}>
+            <TouchableOpacity
+              style={[styles.toggleBtn, { backgroundColor: colors.primary, borderColor: colors.primary }]}
+              onPress={() => router.push(`/studio/new?renewAppId=${app.id}`)}
+            >
+              <Power size={18} color="#000" />
+              <Text style={[styles.toggleBtnText, { color: '#000' }]}>
+                RENEW LISTING
+              </Text>
+            </TouchableOpacity>
+            {app.app_type !== 'Production' && (
+              <TouchableOpacity
+                style={[styles.toggleBtn, { backgroundColor: '#34C759', borderColor: '#34C759' }]}
+                onPress={() => router.push(`/studio/new?renewAppId=${app.id}&presetAppType=Production`)}
+              >
+                <Star size={18} color="#fff" fill="#fff" />
+                <Text style={[styles.toggleBtnText, { color: '#fff' }]}>
+                  CONVERT TO PRODUCTION
                 </Text>
-              </>
+              </TouchableOpacity>
             )}
-          </TouchableOpacity>
+          </View>
+        ) : (
+          <View style={{ flexDirection: 'column', gap: 12 }}>
+            <View style={{ flexDirection: 'row', gap: 12 }}>
+              <TouchableOpacity
+              style={[styles.toggleBtn, app.active !== false ? styles.toggleBtnActive : styles.toggleBtnInactive, { flex: 1 }]}
+              onPress={handleToggleActive}
+              disabled={isToggling}
+            >
+              {isToggling ? (
+                <ActivityIndicator size="small" color={app.active !== false ? colors.danger : colors.primary} />
+              ) : (
+                <>
+                  {app.active !== false ? <PowerOff size={18} color={colors.danger} /> : <Power size={18} color={colors.primary} />}
+                  <Text style={[styles.toggleBtnText, app.active !== false ? { color: colors.danger } : { color: colors.primary }]}>
+                    {app.active !== false ? 'DELIST APP' : 'ACTIVATE APP'}
+                  </Text>
+                </>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.toggleBtn, { flex: 1, backgroundColor: '#FF9500', borderColor: '#FF9500' }]}
+              onPress={() => setBoostModalVisible(true)}
+            >
+              <Activity size={18} color="#fff" />
+              <Text style={[styles.toggleBtnText, { color: '#fff' }]}>
+                BOOST LISTING
+              </Text>
+            </TouchableOpacity>
+            </View>
+            
+            {/* Show convert to production for unlimited apps too */}
+            {app.app_type !== 'Production' && !app.expires_at && (
+              <TouchableOpacity
+                style={[styles.toggleBtn, { backgroundColor: '#34C759', borderColor: '#34C759' }]}
+                onPress={() => router.push(`/studio/new?renewAppId=${app.id}&presetAppType=Production`)}
+              >
+                <Star size={18} color="#fff" fill="#fff" />
+                <Text style={[styles.toggleBtnText, { color: '#fff' }]}>
+                  CONVERT TO PRODUCTION
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
         )}
 
         {/* Daily Metrics Chart */}
         <>
-            <View style={styles.chartHeaderRow}>
-              <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>DAILY METRICS</Text>
-              <View style={styles.legendRow}>
-                <View style={[styles.legendDot, { backgroundColor: colors.primary }]} />
-                <Text style={styles.legendText}>Installed</Text>
-                <View style={[styles.legendDot, { backgroundColor: colors.success, marginLeft: 8 }]} />
-                <Text style={styles.legendText}>Checked In</Text>
-              </View>
+          <View style={styles.chartHeaderRow}>
+            <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>DAILY METRICS</Text>
+            <View style={styles.legendRow}>
+              <View style={[styles.legendDot, { backgroundColor: colors.primary }]} />
+              <Text style={styles.legendText}>Installed</Text>
+              <View style={[styles.legendDot, { backgroundColor: colors.success, marginLeft: 8 }]} />
+              <Text style={styles.legendText}>Checked In</Text>
             </View>
-            
-            <View style={{ flexDirection: 'row' }}>
-              <View style={styles.yAxisContainer}>
-                {yAxisLabels.map(label => (
-                  <Text key={label} style={styles.yAxisLabel}>{label}</Text>
-                ))}
-              </View>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chartScroll}>
-                <View style={styles.chartContainer}>
-                  {chartData.map((d, index) => {
-                    const installHeight = (d.installs / chartMax) * 100;
-                    const checkinHeight = (d.checkins / chartMax) * 100;
-                    const isToday = d.date === new Date().toISOString().split('T')[0];
+          </View>
 
-                    return (
-                      <TouchableOpacity key={d.date} style={styles.barGroup} onPress={() => setSelectedDay(d)}>
-                        <View style={styles.barsContainer}>
-                          <View style={[styles.barBg, { height: '100%' }]}>
-                            <View style={[styles.barFillBlue, { height: `${installHeight}%` }]} />
-                          </View>
-                          <View style={[styles.barBg, { height: '100%' }]}>
-                            <View style={[styles.barFillGreen, { height: `${checkinHeight}%` }]} />
-                          </View>
-                        </View>
-                        <Text style={[styles.barLabel, isToday && styles.barLabelToday]}>
-                          {d.date.substring(5).replace('-', '/')}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              </ScrollView>
+          <View style={{ flexDirection: 'row' }}>
+            <View style={styles.yAxisContainer}>
+              {yAxisLabels.map(label => (
+                <Text key={label} style={styles.yAxisLabel}>{label}</Text>
+              ))}
             </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chartScroll}>
+              <View style={styles.chartContainer}>
+                {chartData.map((d, index) => {
+                  const installHeight = (d.installs / chartMax) * 100;
+                  const checkinHeight = (d.checkins / chartMax) * 100;
+                  const isToday = d.date === new Date().toISOString().split('T')[0];
+
+                  return (
+                    <TouchableOpacity key={d.date} style={styles.barGroup} onPress={() => setSelectedDay(d)}>
+                      <View style={styles.barsContainer}>
+                        <View style={[styles.barBg, { height: '100%' }]}>
+                          <View style={[styles.barFillBlue, { height: `${installHeight}%` }]} />
+                        </View>
+                        <View style={[styles.barBg, { height: '100%' }]}>
+                          <View style={[styles.barFillGreen, { height: `${checkinHeight}%` }]} />
+                        </View>
+                      </View>
+                      <Text style={[styles.barLabel, isToday && styles.barLabelToday]}>
+                        {d.date.substring(5).replace('-', '/')}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </ScrollView>
+          </View>
         </>
 
-        {/* Reports */}
-        <Text style={styles.sectionTitle}>REPORTS</Text>
-        <View style={styles.reportsCard}>
-          <View style={styles.reportRow}>
-            <View style={styles.reportInfo}>
-              <Text style={styles.reportTitle}>Day 14</Text>
-              <Text style={styles.reportSub}>Final 14-day report ready</Text>
+        {/* Active Testers */}
+        <Text style={styles.sectionTitle}>ACTIVE TESTERS ({activeTesters})</Text>
+        <View style={styles.reviewsContainer}>
+          {metrics?.filter((c: any) => c.status === 'active').map((contract: any) => {
+            const progressDays = contract.contract_days?.filter((d: any) => d.status === 'verified' || d.status === 'done' || d.status === 'pending').length || 0;
+            return (
+              <View key={contract.id} style={styles.testerCard}>
+                {contract.tester?.avatar_url ? (
+                  <Image source={{ uri: contract.tester.avatar_url }} style={styles.avatarImage} />
+                ) : (
+                  <View style={styles.reviewAvatar}>
+                    <Text style={styles.reviewAvatarText}>
+                      {contract.tester?.name?.substring(0, 2).toUpperCase() || 'TE'}
+                    </Text>
+                  </View>
+                )}
+                <View style={{ flex: 1, marginLeft: 12 }}>
+                  <Text style={styles.reviewName}>{contract.tester?.name || 'Tester'}</Text>
+                  <Text style={styles.reviewDate}>Day {progressDays} of {app.app_type === 'Production' ? '7' : '14'} completed</Text>
+                  {contract.rate_proof_url && (
+                    <TouchableOpacity onPress={() => Linking.openURL(contract.rate_proof_url)}>
+                      <Text style={{ color: colors.primary, fontSize: 12, marginTop: 4, fontWeight: '600' }}>View Rating Screenshot</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </View>
+            );
+          })}
+          {(!metrics || activeTesters === 0) && (
+            <Text style={{ color: colors.textSecondary, fontStyle: 'italic', marginLeft: 8 }}>No active testers currently.</Text>
+          )}
+        </View>
+
+        {/* Tester Feedback */}
+        <Text style={styles.sectionTitle}>TESTER FEEDBACK</Text>
+        <View style={{ marginBottom: 32 }}>
+          {metrics?.filter((c: any) => c.feedback).map((contract: any) => (
+            <View key={`fb-${contract.id}`} style={styles.feedbackCard}>
+              <View style={styles.feedbackHeader}>
+                <Text style={styles.feedbackTesterName}>{contract.tester?.name || 'Tester'}</Text>
+                <View style={{ flexDirection: 'row' }}>
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <Star key={star} size={14} color={star <= contract.feedback.rating ? colors.primary : colors.border} fill={star <= contract.feedback.rating ? colors.primary : "transparent"} />
+                  ))}
+                </View>
+              </View>
+              {contract.feedback.bugs && contract.feedback.bugs.length > 0 && (
+                <View style={styles.feedbackBlock}>
+                  <Text style={styles.feedbackLabel}>BUGS FOUND</Text>
+                  <Text style={styles.feedbackText}>{contract.feedback.bugs}</Text>
+                </View>
+              )}
+              {contract.feedback.general && contract.feedback.general.length > 0 && (
+                <View style={styles.feedbackBlock}>
+                  <Text style={styles.feedbackLabel}>GENERAL FEEDBACK</Text>
+                  <Text style={styles.feedbackText}>{contract.feedback.general}</Text>
+                </View>
+              )}
             </View>
-            <TouchableOpacity style={styles.pdfBtn} onPress={() => setShowComingSoon(true)}>
-              <Download size={14} color={colors.text} />
-              <Text style={styles.pdfBtnText}>PDF</Text>
-            </TouchableOpacity>
-          </View>
-          <View style={styles.reportDivider} />
-          <View style={styles.reportRow}>
-            <View style={styles.reportInfo}>
-              <Text style={styles.reportTitle}>Day 7</Text>
-              <Text style={styles.reportSub}>Mid-cycle benchmarks</Text>
+          ))}
+          {!metrics?.some((c: any) => c.feedback) && (
+            <View style={styles.emptyFeedback}>
+              <MessageSquare size={24} color={colors.textSecondary} />
+              <Text style={styles.emptyFeedbackText}>No Day 14 feedback submitted yet.</Text>
             </View>
-            <TouchableOpacity style={styles.pdfBtn} onPress={() => setShowComingSoon(true)}>
-              <Download size={14} color={colors.text} />
-              <Text style={styles.pdfBtnText}>PDF</Text>
-            </TouchableOpacity>
-          </View>
-          <View style={styles.reportDivider} />
-          <View style={styles.reportRow}>
-            <View style={styles.reportInfo}>
-              <Text style={styles.reportTitle}>Day 1</Text>
-              <Text style={styles.reportSub}>Launch baseline</Text>
-            </View>
-            <TouchableOpacity style={styles.pdfBtn} onPress={() => setShowComingSoon(true)}>
-              <Download size={14} color={colors.text} />
-              <Text style={styles.pdfBtnText}>PDF</Text>
-            </TouchableOpacity>
-          </View>
+          )}
         </View>
 
         {/* Tester Reviews */}
@@ -414,18 +543,18 @@ export default function StudioDetail() {
             <Text style={styles.modalDesc}>
               {selectedDay?.date ? new Date(selectedDay.date).toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'short', day: 'numeric' }) : ''}
             </Text>
-            
+
             <View style={styles.dayStatsContainer}>
               <View style={styles.dayStatItem}>
                 <View style={[styles.legendDot, { backgroundColor: colors.primary, width: 12, height: 12, borderRadius: 6 }]} />
                 <Text style={styles.dayStatLabel}>Installed</Text>
-                <View style={{flex: 1}}/>
+                <View style={{ flex: 1 }} />
                 <Text style={styles.dayStatValue}>{selectedDay?.installs}</Text>
               </View>
               <View style={styles.dayStatItem}>
                 <View style={[styles.legendDot, { backgroundColor: colors.success, width: 12, height: 12, borderRadius: 6 }]} />
                 <Text style={styles.dayStatLabel}>Checked In</Text>
-                <View style={{flex: 1}}/>
+                <View style={{ flex: 1 }} />
                 <Text style={styles.dayStatValue}>{selectedDay?.checkins}</Text>
               </View>
             </View>
@@ -437,6 +566,65 @@ export default function StudioDetail() {
         </View>
       </Modal>
 
+      {/* Boost Modal */}
+      <Modal visible={boostModalVisible} transparent animationType="fade" onRequestClose={() => setBoostModalVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <TouchableOpacity style={styles.modalClose} onPress={() => setBoostModalVisible(false)}>
+              <X size={20} color={colors.textSecondary} />
+            </TouchableOpacity>
+            
+            <View style={[styles.modalIconCircle, { backgroundColor: 'rgba(255, 149, 0, 0.1)' }]}>
+              <Activity size={32} color="#FF9500" />
+            </View>
+
+            <Text style={styles.modalTitle}>Boost Listing</Text>
+            <Text style={styles.modalDesc}>
+              Boosting your app pins it to the top of the Catalog with a Promoted badge, instantly getting you testers.
+            </Text>
+
+            <View style={{ width: '100%', backgroundColor: colors.background, borderRadius: 12, padding: 16, marginBottom: 24 }}>
+              <Text style={{ color: colors.textSecondary, fontSize: 12, fontWeight: '800', marginBottom: 8, textAlign: 'center' }}>DURATION (DAYS)</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16 }}>
+                <TouchableOpacity 
+                  style={{ backgroundColor: colors.card, width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', opacity: boostDays <= 1 ? 0.5 : 1 }}
+                  onPress={() => setBoostDays(Math.max(1, boostDays - 1))}
+                  disabled={boostDays <= 1}
+                >
+                  <Text style={{ color: colors.text, fontSize: 24, fontWeight: 'bold' }}>-</Text>
+                </TouchableOpacity>
+                <Text style={{ fontSize: 32, fontWeight: 'bold', color: colors.text }}>{boostDays}</Text>
+                <TouchableOpacity 
+                  style={{ backgroundColor: colors.card, width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', opacity: boostDays >= (app.expires_at ? Math.max(1, daysRemaining) : 30) ? 0.5 : 1 }}
+                  onPress={() => {
+                    const maxDays = app.expires_at ? Math.max(1, daysRemaining) : 30;
+                    if (boostDays >= maxDays) {
+                      showAlert('Limit Reached', `You can only boost for up to ${maxDays} days because your app listing expires soon. Renew it first to boost longer!`);
+                      return;
+                    }
+                    setBoostDays(Math.min(maxDays, boostDays + 1));
+                  }}
+                >
+                  <Text style={{ color: colors.text, fontSize: 24, fontWeight: 'bold' }}>+</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%', marginBottom: 24 }}>
+              <Text style={{ color: colors.textSecondary, fontSize: 14, fontWeight: '600' }}>Cost (20 tokens/day)</Text>
+              <Text style={{ color: '#FF9500', fontSize: 18, fontWeight: '900' }}>{boostDays * 20} TOKENS</Text>
+            </View>
+
+            <TouchableOpacity 
+              style={[styles.modalBtnPrimary, { backgroundColor: '#FF9500' }]} 
+              onPress={handleBoost}
+              disabled={isBoosting}
+            >
+              {isBoosting ? <ActivityIndicator color="#fff" /> : <Text style={styles.modalBtnPrimaryText}>CONFIRM BOOST</Text>}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -630,7 +818,8 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     color: colors.text,
   },
   reviewsContainer: {
-    gap: 12,
+    gap: 0,
+    marginBottom: 12,
   },
   reviewCard: {
     backgroundColor: colors.card,
@@ -670,6 +859,16 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     color: colors.text,
     marginRight: 8,
   },
+  testerCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.card,
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
   reviewStars: {
     flexDirection: 'row',
     gap: 2,
@@ -695,7 +894,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     borderTopColor: colors.border,
   },
   exportBtn: {
-    backgroundColor: colors.text,
+    backgroundColor: colors.primary,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -704,7 +903,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     gap: 8,
   },
   exportBtnText: {
-    color: colors.background,
+    color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
   },
@@ -840,7 +1039,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     marginBottom: 24,
   },
   modalBtnPrimary: {
-    backgroundColor: colors.text,
+    backgroundColor: colors.primary,
     paddingVertical: 14,
     paddingHorizontal: 24,
     borderRadius: 12,
@@ -848,7 +1047,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     alignItems: 'center',
   },
   modalBtnPrimaryText: {
-    color: colors.background,
+    color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '700',
   },
@@ -874,5 +1073,56 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: colors.text,
+  },
+  feedbackCard: {
+    backgroundColor: colors.card,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  feedbackHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  feedbackTesterName: {
+    fontWeight: 'bold',
+    fontSize: 14,
+    color: colors.text,
+  },
+  feedbackBlock: {
+    backgroundColor: isDark ? '#1C1C1E' : '#F2F2F7',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  feedbackLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: colors.textSecondary,
+    marginBottom: 4,
+    letterSpacing: 0.5,
+  },
+  feedbackText: {
+    fontSize: 14,
+    color: colors.text,
+    lineHeight: 20,
+  },
+  emptyFeedback: {
+    backgroundColor: colors.card,
+    borderRadius: 12,
+    padding: 24,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+  },
+  emptyFeedbackText: {
+    marginTop: 8,
+    color: colors.textSecondary,
+    fontSize: 14,
+    fontStyle: 'italic',
   },
 });

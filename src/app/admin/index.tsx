@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ChevronLeft, ChevronRight, Users, MessageSquare, AlertTriangle, Activity } from 'lucide-react-native';
+import { ChevronLeft, ChevronRight, Users, MessageSquare, AlertTriangle, Activity, Store, ShieldAlert } from 'lucide-react-native';
 import { useTheme } from '../../theme/ThemeContext';
 
 export default function AdminDashboard() {
@@ -56,6 +56,18 @@ export default function AdminDashboard() {
           </TouchableOpacity>
           
           <View style={styles.divider} />
+          <TouchableOpacity style={styles.rowCenter} onPress={() => router.push('/admin/disputes')}>
+            <View style={[styles.iconContainer, { backgroundColor: 'rgba(255, 59, 48, 0.1)' }]}>
+              <ShieldAlert size={20} color="#FF3B30" />
+            </View>
+            <View style={styles.rowTextCol}>
+              <Text style={styles.rowTitle}>Dispute Resolution</Text>
+              <Text style={styles.rowSub}>Review and overturn rejected proofs</Text>
+            </View>
+            <ChevronRight size={16} color="#C7C7CC" />
+          </TouchableOpacity>
+
+          <View style={styles.divider} />
 
           <TouchableOpacity style={styles.rowCenter} onPress={() => router.push('/admin/reports')}>
             <View style={[styles.iconContainer, { backgroundColor: 'rgba(255, 59, 48, 0.1)' }]}>
@@ -64,6 +76,19 @@ export default function AdminDashboard() {
             <View style={styles.rowTextCol}>
               <Text style={styles.rowTitle}>App Moderation</Text>
               <Text style={styles.rowSub}>Review flagged apps and disputes</Text>
+            </View>
+            <ChevronRight size={16} color="#C7C7CC" />
+          </TouchableOpacity>
+
+          <View style={styles.divider} />
+
+          <TouchableOpacity style={styles.rowCenter} onPress={() => router.push('/admin/listings')}>
+            <View style={[styles.iconContainer, { backgroundColor: 'rgba(255, 149, 0, 0.1)' }]}>
+              <Store size={20} color="#FF9500" />
+            </View>
+            <View style={styles.rowTextCol}>
+              <Text style={styles.rowTitle}>Listings & Apps</Text>
+              <Text style={styles.rowSub}>Review, edit, ban, and remove apps</Text>
             </View>
             <ChevronRight size={16} color="#C7C7CC" />
           </TouchableOpacity>

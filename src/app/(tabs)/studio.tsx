@@ -1,6 +1,7 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
-import { BookOpen, Hexagon, Info, Sparkles, X } from 'lucide-react-native';
-import React, { useState } from 'react';
+import { BookOpen, Hexagon, Info, Sparkles, X, Settings2, Rocket } from 'lucide-react-native';
+import React, { useState, useEffect } from 'react';
 import { ActivityIndicator, Modal, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useAuth } from '../../api/auth';
 import { useCatalog, useUserProfile } from '../../api/queries';
@@ -21,6 +22,20 @@ export default function Studio() {
   const catalog = catalogData || [];
 
   const [refreshing, setRefreshing] = useState(false);
+  const [showWelcome, setShowWelcome] = useState(false);
+
+  useEffect(() => {
+    AsyncStorage.getItem('studio_first_visit').then(visited => {
+      if (!visited) {
+        setShowWelcome(true);
+      }
+    });
+  }, []);
+
+  const dismissWelcome = () => {
+    setShowWelcome(false);
+    AsyncStorage.setItem('studio_first_visit', 'true');
+  };
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -31,19 +46,41 @@ export default function Studio() {
     }
   };
 
+  // Helper to determine if an app is expired
+  const checkIsExpired = (app: any) => {
+    const isUnlimited = app.app_type !== 'Production' && (userProfile?.subscription_tier === 'Pro' || userProfile?.subscription_tier === 'Pro+');
+    let effectiveExpiresAt = app.expires_at ? new Date(app.expires_at) : null;
+    if (!effectiveExpiresAt && app.created_at) {
+      let days = 14;
+      if (app.tier === 'Pro') days = 20;
+      if (app.tier === 'Pro+') days = 30;
+      effectiveExpiresAt = new Date(app.created_at);
+      effectiveExpiresAt.setDate(effectiveExpiresAt.getDate() + days);
+    }
+    return !isUnlimited && effectiveExpiresAt ? effectiveExpiresAt < new Date() : false;
+  };
+
   // Find apps owned by the current user
-  const myApps = catalog.filter((app: any) => app.owner_id === session?.user?.id);
+  const myApps = catalog
+    .filter((app: any) => app.owner_id === session?.user?.id)
+    .sort((a: any, b: any) => {
+      const aLive = a.active !== false && !checkIsExpired(a);
+      const bLive = b.active !== false && !checkIsExpired(b);
+      if (aLive && !bLive) return -1;
+      if (!aLive && bLive) return 1;
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
 
   let activeAppLimit = 1;
   if (userProfile?.subscription_tier === 'Pro') activeAppLimit = 5;
   if (userProfile?.subscription_tier === 'Pro+') activeAppLimit = 10;
 
-  const activeAppsCount = myApps.filter((app: any) => app.active !== false).length;
+  const activeAppsCount = myApps.filter((app: any) => app.active !== false && !checkIsExpired(app)).length;
 
   if (loadingProfile || loadingCatalog) {
     return (
       <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" color="#0A84FF" />
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
@@ -98,8 +135,6 @@ export default function Studio() {
             { title: "Publish to Catalog", description: "Go to the Build tab and make your app live to get testers" },
             { title: "Review Proofs", description: "Approve daily proofs to maintain your app's quality" }
           ]}
-        // buttonText="+ Add your first app"
-        // onPressButton={() => router.push('/studio/new')}
         />
       )}
 
@@ -108,8 +143,18 @@ export default function Studio() {
         const failedTesters = app.contracts?.filter((c: any) => c.status === 'failed').length || 0;
         const churnRate = (app.contracts?.length || 0) > 0 ? Math.round((failedTesters / app.contracts.length) * 100) : 0;
 
-        const isExpired = app.expires_at ? new Date(app.expires_at) < new Date() : false;
-        const daysRemaining = app.expires_at ? Math.max(0, Math.ceil((new Date(app.expires_at).getTime() - new Date().getTime()) / (1000 * 3600 * 24))) : 0;
+        const isUnlimited = app.app_type !== 'Production' && (userProfile?.subscription_tier === 'Pro' || userProfile?.subscription_tier === 'Pro+');
+        
+        const isExpired = checkIsExpired(app);
+        let effectiveExpiresAt = app.expires_at ? new Date(app.expires_at) : null;
+        if (!effectiveExpiresAt && app.created_at) {
+          let days = 14;
+          if (app.tier === 'Pro') days = 20;
+          if (app.tier === 'Pro+') days = 30;
+          effectiveExpiresAt = new Date(app.created_at);
+          effectiveExpiresAt.setDate(effectiveExpiresAt.getDate() + days);
+        }
+        const daysRemaining = effectiveExpiresAt ? Math.max(0, Math.ceil((effectiveExpiresAt.getTime() - new Date().getTime()) / (1000 * 3600 * 24))) : 0;
 
         return (
           <TouchableOpacity
@@ -123,18 +168,18 @@ export default function Studio() {
               </View>
               <View style={styles.appTitleCol}>
                 <Text style={styles.appName}>{app.name}</Text>
-                <Text style={styles.appSub}>{app.tier} • {app.tester_limit} Testers{isExpired ? ' • Expired' : app.expires_at ? ` • Expires in ${daysRemaining}d` : ' • Unlimited'}</Text>
+                <Text style={styles.appSub}>{app.tier} • {app.tester_limit} Testers{isExpired ? ' • Expired' : isUnlimited ? ' • Unlimited' : ` • Expires in ${daysRemaining}d`}</Text>
               </View>
               <View style={[
                 styles.liveBadge,
                 isExpired ? { backgroundColor: 'rgba(255, 59, 48, 0.1)' } :
-                app.active === false ? { backgroundColor: colors.border } : {}
+                  app.active === false ? { backgroundColor: colors.border } : {}
               ]}>
                 {!isExpired && app.active !== false && <View style={styles.liveDot} />}
                 <Text style={[
                   styles.liveText,
                   isExpired ? { color: colors.danger } :
-                  app.active === false ? { color: colors.textSecondary } : {}
+                    app.active === false ? { color: colors.textSecondary } : {}
                 ]}>
                   {isExpired ? 'EXPIRED' : app.active !== false ? 'LIVE' : 'OFFLINE'}
                 </Text>
@@ -184,6 +229,42 @@ export default function Studio() {
         </View>
       </Modal>
 
+      {/* First-time Studio Welcome Modal */}
+      <Modal visible={showWelcome} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { alignItems: 'stretch' }]}>
+            <TouchableOpacity style={styles.modalClose} onPress={dismissWelcome}>
+              <X size={20} color={colors.textSecondary} />
+            </TouchableOpacity>
+
+            <View style={{ alignItems: 'center', marginBottom: 16 }}>
+              <View style={[styles.modalIconCircle, { backgroundColor: isDark ? '#1C2B36' : '#E1F0FF' }]}>
+                <Rocket size={32} color={colors.primary} />
+              </View>
+              <Text style={styles.modalTitle}>Welcome to Studio</Text>
+            </View>
+
+            <Text style={styles.modalBody}>
+              This is your developer dashboard. Here you can list your apps, track testers, review daily proofs, and manage settings.
+            </Text>
+            
+            <View style={styles.proTipCard}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+                <Sparkles size={16} color={colors.primary} style={{ marginRight: 6 }} />
+                <Text style={styles.proTipTitle}>Pro Tip: Auto-Approve</Text>
+              </View>
+              <Text style={styles.proTipBody}>
+                Manually reviewing 20 testers every day can be tedious. Pro+ members can enable Auto-Approve to handle it automatically!
+              </Text>
+            </View>
+
+            <TouchableOpacity style={styles.modalBtnPrimary} onPress={dismissWelcome}>
+              <Text style={styles.modalBtnPrimaryText}>Let's Build</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
     </ScrollView>
   );
 }
@@ -195,7 +276,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   content: {
     padding: 12,
-    paddingTop: 64,
+    paddingTop: 32,
     paddingBottom: 20,
   },
   topNav: {
@@ -267,7 +348,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   newAppBtn: {
     flex: 1,
-    backgroundColor: colors.text,
+    backgroundColor: colors.primary,
     borderRadius: 12,
     padding: 12,
     alignItems: 'flex-start',
@@ -277,15 +358,15 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   newAppPlus: {
     fontSize: 26,
     fontWeight: '800',
-    color: colors.background,
+    color: '#FFFFFF',
     marginBottom: 4,
     marginTop: -8,
   },
   newAppLabel: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '800',
-    color: colors.background,
-    letterSpacing: 1,
+    color: '#FFFFFF',
+    letterSpacing: 0.5,
   },
   sectionTitle: {
     color: colors.textSecondary,
@@ -450,7 +531,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     marginBottom: 24,
   },
   modalBtnPrimary: {
-    backgroundColor: colors.text,
+    backgroundColor: colors.primary,
     paddingVertical: 14,
     paddingHorizontal: 24,
     borderRadius: 12,
@@ -458,8 +539,33 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     alignItems: 'center',
   },
   modalBtnPrimaryText: {
-    color: colors.background,
+    color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '700',
+  },
+  modalBody: {
+    fontSize: 15,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 24,
+  },
+  proTipCard: {
+    backgroundColor: isDark ? '#1C3322' : '#E5F1FF',
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: isDark ? 'rgba(52, 199, 89, 0.3)' : 'rgba(10, 132, 255, 0.3)',
+    marginBottom: 24,
+  },
+  proTipTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: colors.text,
+  },
+  proTipBody: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    lineHeight: 20,
   },
 });
