@@ -74,48 +74,77 @@ export default function AdminListings() {
         </View>
       ) : (
         <ScrollView contentContainerStyle={[styles.content, { paddingBottom: Math.max(insets.bottom + 20, 60) }]}>
-          {filteredApps.map((app: any) => (
-            <View key={app.id} style={[styles.card, app.banned === true && styles.cardBanned, app.active === false && app.banned !== true && styles.cardInactive]}>
-              <View style={styles.appHeader}>
-                <AppIcon url={app.icon_url} size={48} />
-                <View style={styles.appInfo}>
-                  <Text style={styles.appName} numberOfLines={1}>{app.name}</Text>
-                  <Text style={styles.ownerName}>Dev: {app.owner?.name || 'Unknown'} (Karma: {app.owner?.karma || 0})</Text>
-                  <Text style={[styles.statusText, app.banned === true ? styles.textBanned : (app.active === false ? styles.textInactive : styles.textActive)]}>
-                    {app.banned === true ? 'BANNED' : (app.active === false ? 'INACTIVE' : 'ACTIVE')}
-                  </Text>
+          {filteredApps.map((app: any) => {
+            const now = new Date();
+            const expiresAt = app.expires_at ? new Date(app.expires_at) : null;
+            const daysRemaining = expiresAt
+              ? Math.ceil((expiresAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+              : null;
+            const isExpired = daysRemaining !== null && daysRemaining <= 0;
+            const isExpiringSoon = daysRemaining !== null && daysRemaining > 0 && daysRemaining <= 3;
+            const activeTesterCount = (app.contracts || []).filter((c: any) => c.status === 'active').length;
+
+            const cardBorderColor = app.banned === true ? '#FF3B30' :
+              isExpired ? '#FF9500' :
+              isExpiringSoon ? '#FFD700' :
+              colors.border;
+
+            return (
+              <View key={app.id} style={[styles.card, { borderColor: cardBorderColor }]}>
+                <View style={styles.appHeader}>
+                  <AppIcon url={app.icon_url} size={48} />
+                  <View style={styles.appInfo}>
+                    <Text style={styles.appName} numberOfLines={1}>{app.name}</Text>
+                    <Text style={styles.ownerName}>Dev: {app.owner?.name || 'Unknown'} (Karma: {app.owner?.karma || 0})</Text>
+                    <View style={{ flexDirection: 'row', gap: 6, marginTop: 4, flexWrap: 'wrap' }}>
+                      <View style={[styles.typeBadge, { backgroundColor: app.app_type === 'Production' ? '#34C759' : '#0A84FF' }]}>
+                        <Text style={styles.typeBadgeText}>{app.app_type || 'Testing'}</Text>
+                      </View>
+                      <View style={[styles.typeBadge, { backgroundColor: app.banned === true ? '#FF3B30' : (app.active === false ? '#8E8E93' : '#34C759') }]}>
+                        <Text style={styles.typeBadgeText}>{app.banned === true ? 'BANNED' : (app.active === false ? 'INACTIVE' : 'ACTIVE')}</Text>
+                      </View>
+                    </View>
+                    <Text style={[styles.ownerName, { marginTop: 4 }]}>
+                      Testers: {activeTesterCount}/{app.tester_limit || '?'}
+                      {daysRemaining !== null && (
+                        <Text style={{ color: isExpired ? '#FF3B30' : isExpiringSoon ? '#FF9500' : colors.textSecondary }}>
+                          {' '}• {isExpired ? 'EXPIRED' : `${daysRemaining}d left`}
+                        </Text>
+                      )}
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.actionsRow}>
+                  <TouchableOpacity style={styles.actionBtn} onPress={() => router.push(`/catalog/${app.id}`)}>
+                    <ExternalLink size={18} color={colors.text} />
+                    <Text style={styles.actionText}>View</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.actionBtn}
+                    onPress={() => handleToggle(app.id, app.banned === true)}
+                    disabled={isToggling}
+                  >
+                    {app.banned !== true ? (
+                      <><Ban size={18} color="#FF9500" /><Text style={[styles.actionText, { color: '#FF9500' }]}>Ban</Text></>
+                    ) : (
+                      <><CheckCircle size={18} color="#34C759" /><Text style={[styles.actionText, { color: '#34C759' }]}>Unban</Text></>
+                    )}
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.actionBtn}
+                    onPress={() => handleDelete(app.id)}
+                    disabled={isDeleting}
+                  >
+                    <Trash2 size={18} color="#FF3B30" />
+                    <Text style={[styles.actionText, { color: '#FF3B30' }]}>Delete</Text>
+                  </TouchableOpacity>
                 </View>
               </View>
-
-              <View style={styles.actionsRow}>
-                <TouchableOpacity style={styles.actionBtn} onPress={() => router.push(`/catalog/${app.id}`)}>
-                  <ExternalLink size={18} color={colors.text} />
-                  <Text style={styles.actionText}>View</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity 
-                  style={styles.actionBtn} 
-                  onPress={() => handleToggle(app.id, app.banned === true)}
-                  disabled={isToggling}
-                >
-                  {app.banned !== true ? (
-                    <><Ban size={18} color="#FF9500" /><Text style={[styles.actionText, { color: '#FF9500' }]}>Ban</Text></>
-                  ) : (
-                    <><CheckCircle size={18} color="#34C759" /><Text style={[styles.actionText, { color: '#34C759' }]}>Unban</Text></>
-                  )}
-                </TouchableOpacity>
-
-                <TouchableOpacity 
-                  style={styles.actionBtn} 
-                  onPress={() => handleDelete(app.id)}
-                  disabled={isDeleting}
-                >
-                  <Trash2 size={18} color="#FF3B30" />
-                  <Text style={[styles.actionText, { color: '#FF3B30' }]}>Delete</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          ))}
+            );
+          })}
           {filteredApps.length === 0 && (
             <Text style={styles.emptyText}>No listings found.</Text>
           )}
@@ -252,5 +281,16 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     color: colors.textSecondary,
     marginTop: 40,
     fontSize: 16,
-  }
+  },
+  typeBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  typeBadgeText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
 });

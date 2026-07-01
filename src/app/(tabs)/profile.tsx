@@ -136,6 +136,19 @@ export default function Profile() {
           </View>
           <ChevronRight size={16} color="#C7C7CC" />
         </TouchableOpacity>
+
+        <View style={styles.divider} />
+
+        <TouchableOpacity style={styles.listItem} onPress={() => router.push('/test-history' as any)}>
+          <View style={styles.iconContainer}>
+            <ShieldCheck size={20} color="#8E8E93" />
+          </View>
+          <View style={styles.rowTextCol}>
+            <Text style={styles.rowTitle}>Test History</Text>
+            <Text style={styles.rowSub}>Apps you've tested and completed</Text>
+          </View>
+          <ChevronRight size={16} color="#C7C7CC" />
+        </TouchableOpacity>
       </View>
 
       <Text style={styles.sectionTitle}>APP SETTINGS</Text>

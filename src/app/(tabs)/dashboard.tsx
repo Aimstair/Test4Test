@@ -37,11 +37,20 @@ export default function Dashboard() {
   const { data: contractsData, isLoading: loadingContracts, refetch: refetchContracts } = useContracts(session?.user?.id);
 
   const rawContracts = contractsData || [];
-  // Only show active contracts, deduplicated by app (keep latest)
+  // Split into active and completed (all days resolved)
+  const isContractCompleted = (c: any) => {
+    if (!c.days || c.days.length === 0) return false;
+    return c.days.every((d: any) => ['done', 'missed', 'rejected'].includes(d.status));
+  };
+
   const contracts = rawContracts
-    .filter((c: any) => c.status === 'active')
+    .filter((c: any) => c.status === 'active' && !isContractCompleted(c))
     .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
     .filter((c: any, i: number, arr: any[]) => arr.findIndex((x: any) => x.app_id === c.app_id) === i);
+
+  const completedContracts = rawContracts
+    .filter((c: any) => isContractCompleted(c))
+    .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
   const user = userProfile || { tokens: 0, karma: 0 };
   const { data: notifications } = useNotifications(session?.user?.id);
   const unreadCount = (notifications || []).filter((n: any) => !n.is_read).length;
@@ -337,6 +346,8 @@ export default function Dashboard() {
           return 'future';
         };
 
+        const numDays = app.app_type === 'Production' ? 7 : 14;
+
         return (
           <View key={contract.id} style={styles.contractCard}>
             <TouchableOpacity style={styles.contractHeader} onPress={() => router.push(`/catalog/${app.id}`)}>
@@ -345,7 +356,7 @@ export default function Dashboard() {
               </View>
               <View>
                 <Text style={styles.appName}>{app.name}</Text>
-                <Text style={styles.appSub}>DAY {currentDay?.day_number || 1}/{app.app_type === 'Production' ? '7' : '14'} • +1 KARMA PER CHECK-IN</Text>
+                <Text style={styles.appSub}>DAY {currentDay?.day_number || 1}/{numDays} • +1 KARMA PER CHECK-IN</Text>
               </View>
             </TouchableOpacity>
 
@@ -353,9 +364,21 @@ export default function Dashboard() {
               <View key={`reject-${rejectedDay.id}`} style={styles.rejectedBlock}>
                 <Text style={styles.rejectedTitle}>🛑 Proof Rejected (Day {rejectedDay.day_number})</Text>
                 {rejectedDay.reject_reason && <Text style={styles.rejectReason}>Reason: {rejectedDay.reject_reason}</Text>}
-                <TouchableOpacity style={styles.btnDispute} onPress={() => handleDispute(rejectedDay.id)}>
-                  <Text style={styles.btnTextWhite}>DISPUTE WITH ADMIN</Text>
-                </TouchableOpacity>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  <TouchableOpacity 
+                    style={[styles.btnDispute, { flex: 1, backgroundColor: colors.primary }]} 
+                    onPress={() => handleUploadProof(contract.id, rejectedDay.day_number, rejectedDay.id)}
+                    disabled={isUploading}
+                  >
+                    <Text style={styles.btnTextWhite}>{isUploading ? 'UPLOADING...' : 'RE-UPLOAD'}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={[styles.btnDispute, { flex: 1 }]} 
+                    onPress={() => handleDispute(rejectedDay.id)}
+                  >
+                    <Text style={styles.btnTextWhite}>DISPUTE</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             ))}
 
@@ -411,7 +434,7 @@ export default function Dashboard() {
                   >
                     <Camera size={16} color={activeAppId === contract.id && timer <= 0 ? "#fff" : "#8E8E93"} />
                     <Text style={activeAppId === contract.id && timer <= 0 ? styles.btnTextWhite : styles.btnTextDisabled}>
-                      {isUploading ? '...' : (currentDay?.day_number === 14 ? 'SURVEY' : 'PROOF')}
+                      {isUploading ? '...' : (currentDay?.day_number === numDays ? 'SURVEY' : 'PROOF')}
                     </Text>
                   </TouchableOpacity>
                   <Text style={{ fontSize: 9, color: colors.primary, fontWeight: '700', marginTop: 4 }}>+1 Karma ⭐</Text>
@@ -429,6 +452,42 @@ export default function Dashboard() {
         >
           <Text style={styles.findBtnText}>FIND ANOTHER APP TO TEST</Text>
         </TouchableOpacity>
+      )}
+
+      {completedContracts.length > 0 && (
+        <>
+          <Text style={styles.sectionTitle}>COMPLETED CONTRACTS</Text>
+          {completedContracts.map((contract: any) => {
+            const app = contract.app;
+            if (!app) return null;
+            const doneCount = contract.days.filter((d: any) => d.status === 'done').length;
+            const totalDays = contract.days.length;
+            return (
+              <TouchableOpacity
+                key={contract.id}
+                style={[styles.contractCard, { borderColor: colors.success, opacity: 0.8 }]}
+                onPress={() => router.push('/test-history' as any)}
+                activeOpacity={0.7}
+              >
+                <View style={styles.contractHeader}>
+                  <View style={styles.appIconPlaceholder}>
+                    <AppIcon url={app.icon_url} size={40} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.appName}>{app.name}</Text>
+                    <Text style={styles.appSub}>{doneCount}/{totalDays} DAYS COMPLETED</Text>
+                  </View>
+                  <View style={[styles.completedBadge]}>
+                    <Text style={styles.completedBadgeText}>✓ DONE</Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
+            );
+          })}
+          <TouchableOpacity style={styles.findBtn} onPress={() => router.push('/test-history' as any)}>
+            <Text style={styles.findBtnText}>VIEW FULL TEST HISTORY</Text>
+          </TouchableOpacity>
+        </>
       )}
 
       {isFocused && (
@@ -782,5 +841,17 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     color: colors.textSecondary,
     fontSize: 14,
     fontWeight: '600',
+  },
+  completedBadge: {
+    backgroundColor: colors.success,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  completedBadgeText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.5,
   },
 });

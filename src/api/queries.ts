@@ -394,10 +394,10 @@ export const useSubmitFinalSurvey = () => {
         await supabase.from('contract_days').update({ proof_image_url: proofUrl, status: 'pending' }).eq('id', dayId);
       }
       
-      // 2. Save feedback to the contract
+      // 2. Save feedback to the contract and mark it completed (Bug 1 Fix)
       const { data, error } = await supabase
         .from('contracts')
-        .update({ feedback })
+        .update({ feedback, status: 'completed' })
         .eq('id', contractId)
         .select()
         .single();
@@ -687,8 +687,13 @@ export const useStartContract = () => {
         throw new Error('You already have an active test contract for this app.');
       }
 
-      // Snapshot bonus_bounty if app is currently boosted
+      // Snapshot app data
       const { data: appData } = await supabase.from('apps').select('boost_ends_at, bounty, name, app_type, owner_id, tester_limit, tier').eq('id', appId).single();
+      
+      // Bug 4 Fix: Prevent developers from testing their own apps
+      if (appData?.owner_id === testerId) {
+        throw new Error('Developers cannot test their own apps.');
+      }
       const isBoosted = appData?.boost_ends_at && new Date(appData.boost_ends_at) > new Date();
       const bonusBounty = isBoosted ? 10 : 0;
 
@@ -758,7 +763,8 @@ export const useUploadProof = () => {
         .from('contract_days')
         .update({ 
           status: 'verified', 
-          proof_image_url: proofUrl
+          proof_image_url: proofUrl,
+          reject_reason: null // Clear reason on re-upload (Bug 5 Fix)
         })
         .match({ contract_id: contractId, day_number: dayNumber })
         .select()
@@ -1101,7 +1107,8 @@ export const useAdminApps = () => {
         .from('apps')
         .select(`
           *,
-          owner:users(name, karma, role)
+          owner:users(name, karma, role),
+          contracts(id, status)
         `)
         .order('created_at', { ascending: false });
       if (error) throw error;
