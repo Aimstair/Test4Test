@@ -18,7 +18,7 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.aimteralabs.test4test.dev",
+      "package": "com.aimteralabs.test4test",
       "permissions": [
         "QUERY_ALL_PACKAGES"
       ]
