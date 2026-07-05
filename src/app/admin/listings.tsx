@@ -6,6 +6,7 @@ import { ChevronLeft, Search, Trash2, Ban, CheckCircle, ExternalLink } from 'luc
 import { useTheme } from '../../theme/ThemeContext';
 import { useAdminApps, useAdminToggleAppStatus, useAdminDeleteApp } from '../../api/queries';
 import AppIcon from '../../components/AppIcon';
+import Skeleton from '../../components/Skeleton';
 
 export default function AdminListings() {
   const router = useRouter();
@@ -69,9 +70,21 @@ export default function AdminListings() {
       </View>
 
       {isLoading ? (
-        <View style={styles.center}>
-          <ActivityIndicator size="large" color={colors.primary} />
-        </View>
+        <ScrollView contentContainerStyle={[styles.content, { paddingBottom: Math.max(insets.bottom + 20, 60) }]}>
+          {[1, 2, 3, 4, 5].map((i) => (
+            <View key={i} style={styles.card}>
+              <View style={styles.appHeader}>
+                <Skeleton width={48} height={48} borderRadius={10} />
+                <View style={[styles.appInfo, { marginLeft: 16 }]}>
+                  <Skeleton width={150} height={16} borderRadius={4} style={{ marginBottom: 6 }} />
+                  <Skeleton width={100} height={14} borderRadius={4} style={{ marginBottom: 6 }} />
+                  <Skeleton width={80} height={14} borderRadius={4} />
+                </View>
+              </View>
+              <Skeleton width="100%" height={30} borderRadius={8} style={{ marginTop: 12 }} />
+            </View>
+          ))}
+        </ScrollView>
       ) : (
         <ScrollView contentContainerStyle={[styles.content, { paddingBottom: Math.max(insets.bottom + 20, 60) }]}>
           {filteredApps.map((app: any) => {

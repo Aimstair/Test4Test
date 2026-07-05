@@ -7,6 +7,7 @@ import { useAuth } from '../../api/auth';
 import { useAppMetrics, useCatalog, useReviews, useToggleAppStatus, useUserProfile, useBoostApp } from '../../api/queries';
 import { useCustomAlert } from '../../components/AlertProvider';
 import AppIcon from '../../components/AppIcon';
+import Skeleton from '../../components/Skeleton';
 import { useTheme } from '../../theme/ThemeContext';
 
 export default function StudioDetail() {
@@ -16,7 +17,6 @@ export default function StudioDetail() {
   const { colors, isDark } = useTheme();
   const styles = getStyles(colors, isDark);
 
-  const [showComingSoon, setShowComingSoon] = React.useState(false);
   const [selectedDay, setSelectedDay] = React.useState<{ date: string, installs: number, checkins: number } | null>(null);
 
   const [boostModalVisible, setBoostModalVisible] = React.useState(false);
@@ -47,8 +47,33 @@ export default function StudioDetail() {
 
   if (isLoading) {
     return (
-      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" color={colors.primary} />
+      <View style={styles.container}>
+        <View style={{ paddingTop: Math.max(insets.top + 12, 48), paddingHorizontal: 16, marginBottom: 20 }}>
+          <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+            <ChevronLeft size={24} color={colors.text} />
+            <Text style={styles.backText}>Build</Text>
+          </TouchableOpacity>
+        </View>
+        <ScrollView contentContainerStyle={styles.content}>
+          <View style={styles.appHeaderCard}>
+            <Skeleton width={64} height={64} borderRadius={16} />
+            <View style={[styles.appHeaderInfo, { marginLeft: 16 }]}>
+              <Skeleton width={120} height={20} borderRadius={4} style={{ marginBottom: 6 }} />
+              <Skeleton width={100} height={14} borderRadius={4} style={{ marginBottom: 6 }} />
+              <Skeleton width={80} height={14} borderRadius={4} />
+            </View>
+          </View>
+          
+          <Skeleton width={100} height={14} borderRadius={4} style={{ marginTop: 24, marginBottom: 8, marginLeft: 16 }} />
+          <View style={styles.metricsGrid}>
+            <View style={styles.metricCard}><Skeleton width="100%" height={60} borderRadius={8} /></View>
+            <View style={styles.metricCard}><Skeleton width="100%" height={60} borderRadius={8} /></View>
+          </View>
+          <View style={styles.metricsGrid}>
+            <View style={styles.metricCard}><Skeleton width="100%" height={60} borderRadius={8} /></View>
+            <View style={styles.metricCard}><Skeleton width="100%" height={60} borderRadius={8} /></View>
+          </View>
+        </ScrollView>
       </View>
     );
   }
@@ -504,30 +529,11 @@ export default function StudioDetail() {
 
       {/* Sticky Footer */}
       <View style={[styles.stickyFooter, { paddingBottom: insets.bottom > 0 ? insets.bottom + 16 : 32 }]}>
-        <TouchableOpacity style={styles.exportBtn} onPress={() => setShowComingSoon(true)}>
+        <TouchableOpacity style={styles.exportBtn} onPress={() => showAlert('Coming Soon', 'This feature is currently under development and will be available in a future update.')}>
           <Download size={18} color={colors.background} />
           <Text style={styles.exportBtnText}>Export 14-day report</Text>
         </TouchableOpacity>
       </View>
-
-      {/* Coming Soon Modal */}
-      <Modal visible={showComingSoon} transparent animationType="fade" onRequestClose={() => setShowComingSoon(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <TouchableOpacity style={styles.modalClose} onPress={() => setShowComingSoon(false)}>
-              <X size={20} color={colors.textSecondary} />
-            </TouchableOpacity>
-            <View style={[styles.modalIconCircle, { backgroundColor: isDark ? '#1C2B36' : '#E1F0FF' }]}>
-              <Info size={32} color={colors.primary} />
-            </View>
-            <Text style={styles.modalTitle}>Coming Soon</Text>
-            <Text style={styles.modalDesc}>This feature is currently under development and will be available in a future update.</Text>
-            <TouchableOpacity style={styles.modalBtnPrimary} onPress={() => setShowComingSoon(false)}>
-              <Text style={styles.modalBtnPrimaryText}>Got it</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
 
       {/* Selected Day Modal */}
       <Modal visible={!!selectedDay} transparent animationType="fade" onRequestClose={() => setSelectedDay(null)}>

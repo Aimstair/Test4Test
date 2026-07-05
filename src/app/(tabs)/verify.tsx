@@ -1,10 +1,11 @@
 import { Check, ChevronLeft, ChevronRight, Flag, Image as ImageIcon, X } from 'lucide-react-native';
 import { useRef, useState } from 'react';
-import { ActivityIndicator, Animated, Image, Modal, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Animated, Image, Modal, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useAuth } from '../../api/auth';
 import { useApprovedProofsCount, useProofQueue, useReviewProof, useUserProfile, useUpdateAutoApprove } from '../../api/queries';
 import EmptyState from '../../components/EmptyState';
 import { useTheme } from '../../theme/ThemeContext';
+import Skeleton from '../../components/Skeleton';
 
 export default function Verify() {
   const { colors, isDark } = useTheme();
@@ -126,8 +127,35 @@ export default function Verify() {
 
   if (isLoading) {
     return (
-      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" color={colors.primary} />
+      <View style={styles.container}>
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.content}>
+           <Skeleton width={120} height={32} borderRadius={4} style={{ marginBottom: 24 }} />
+           <View style={styles.appSelectorCard}>
+             <View style={styles.selectorHeader}>
+               <Skeleton width={24} height={24} borderRadius={12} />
+               <View style={{ alignItems: 'center' }}>
+                 <Skeleton width={100} height={16} borderRadius={4} style={{ marginBottom: 4 }} />
+                 <Skeleton width={60} height={12} borderRadius={4} />
+               </View>
+               <Skeleton width={24} height={24} borderRadius={12} />
+             </View>
+             <View style={styles.selectorStats}>
+               <Skeleton flex={1} height={40} borderRadius={8} style={{ marginHorizontal: 4 }} />
+               <Skeleton flex={1} height={40} borderRadius={8} style={{ marginHorizontal: 4 }} />
+             </View>
+           </View>
+           <View style={{ marginTop: 24 }}>
+             {[1, 2].map(i => (
+               <View key={i} style={styles.proofCard}>
+                 <View style={styles.proofHeader}>
+                   <Skeleton width={100} height={16} borderRadius={4} />
+                   <Skeleton width={80} height={20} borderRadius={10} />
+                 </View>
+                 <Skeleton width="100%" height={200} borderRadius={12} style={{ marginTop: 12 }} />
+               </View>
+             ))}
+           </View>
+        </ScrollView>
       </View>
     );
   }

@@ -1,9 +1,12 @@
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
+import * as Clipboard from 'expo-clipboard';
 import { useRouter } from 'expo-router';
-import { ChevronRight, Clock, CreditCard, HelpCircle, LogOut, Settings, ShieldCheck } from 'lucide-react-native';
-import { ActivityIndicator, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ChevronRight, Clock, CreditCard, Gift, HelpCircle, LogOut, Settings, ShieldCheck } from 'lucide-react-native';
+import { useState } from 'react';
+import { Image, ScrollView, Share, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useAuth } from '../../api/auth';
 import { useContracts, useUserProfile, useUserStats } from '../../api/queries';
+import Skeleton from '../../components/Skeleton';
 import { supabase } from '../../lib/supabase';
 import { useTheme } from '../../theme/ThemeContext';
 
@@ -19,6 +22,23 @@ export default function Profile() {
 
   const user = userProfile || { karma: 0, country: 'US', device: 'Unknown', os: 'Unknown', name: 'User', tokens: 0, avatar_url: null };
   const contracts = contractsData || [];
+
+  const referralCode = userProfile?.referral_code || '';
+  const [copied, setCopied] = useState(false);
+
+  const handleCopyReferral = async () => {
+    if (!referralCode) return;
+    await Clipboard.setStringAsync(referralCode);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleShareReferral = async () => {
+    if (!referralCode) return;
+    await Share.share({
+      message: `Join me on Test4Test and earn 50 bonus tokens! Use my referral code: ${referralCode}\n\nDownload Test4Test to get started.`,
+    });
+  };
 
   // Compute initials from name
   const initials = (user.name || 'U').split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2);
@@ -38,8 +58,31 @@ export default function Profile() {
 
   if (isLoading) {
     return (
-      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" color={colors.primary} />
+      <View style={styles.container}>
+        <View style={{ marginTop: 40, paddingHorizontal: 16, marginBottom: 20 }}>
+          <Skeleton width={120} height={24} borderRadius={4} style={{ marginLeft: 20 }} />
+        </View>
+        <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+          <View style={styles.profileCard}>
+            <View style={styles.profileHeader}>
+              <Skeleton width={48} height={48} borderRadius={24} />
+              <View style={[styles.profileInfo, { marginLeft: 16 }]}>
+                <Skeleton width={120} height={16} borderRadius={4} style={{ marginBottom: 6 }} />
+                <Skeleton width={150} height={14} borderRadius={4} />
+              </View>
+            </View>
+            <View style={styles.divider} />
+            <View style={styles.statsRow}>
+              <Skeleton flex={1} height={40} borderRadius={8} style={{ marginHorizontal: 4 }} />
+              <Skeleton flex={1} height={40} borderRadius={8} style={{ marginHorizontal: 4 }} />
+              <Skeleton flex={1} height={40} borderRadius={8} style={{ marginHorizontal: 4 }} />
+            </View>
+          </View>
+          <View style={{ marginTop: 24 }}>
+            <Skeleton width="100%" height={200} borderRadius={12} style={{ marginBottom: 16 }} />
+            <Skeleton width="100%" height={150} borderRadius={12} />
+          </View>
+        </ScrollView>
       </View>
     );
   }
@@ -98,7 +141,7 @@ export default function Profile() {
       </View>
 
       <Text style={styles.sectionTitle}>ACCOUNT</Text>
-      
+
       <View style={[styles.card, { padding: 0 }]}>
         <TouchableOpacity style={styles.listItem} onPress={() => router.push('/pricing')}>
           <View style={styles.iconContainer}>
@@ -148,6 +191,42 @@ export default function Profile() {
             <Text style={styles.rowSub}>Apps you've tested and completed</Text>
           </View>
           <ChevronRight size={16} color="#C7C7CC" />
+        </TouchableOpacity>
+      </View>
+
+      {/* Referral Code Card */}
+      <Text style={styles.sectionTitle}>INVITE & EARN</Text>
+      <View style={[styles.card, { padding: 16, backgroundColor: colors.primary + '18', borderColor: colors.primary + '44' }]}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+          <Gift size={20} color={colors.primary} />
+          <Text style={[styles.rowTitle, { color: colors.primary }]}>Refer a Friend</Text>
+        </View>
+        <Text style={[styles.rowSub, { marginBottom: 14 }]}>
+          Invite friends to Test4Test. When they complete their first test, you both earn <Text style={{ fontWeight: '700', color: colors.text }}>+50 Tokens</Text>.
+        </Text>
+        <View style={styles.referralCodeBox}>
+          <Text style={styles.referralCodeText}>{referralCode || '...'}</Text>
+        </View>
+        <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
+          <TouchableOpacity
+            style={[styles.referralBtn, { backgroundColor: colors.primary }]}
+            onPress={handleCopyReferral}
+          >
+            <Text style={styles.referralBtnText}>{copied ? '✓ Copied!' : 'Copy Code'}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.referralBtn, { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }]}
+            onPress={handleShareReferral}
+          >
+            <Text style={[styles.referralBtnText, { color: colors.text }]}>Share Invite</Text>
+          </TouchableOpacity>
+        </View>
+        <TouchableOpacity
+          style={{ marginTop: 16, alignItems: 'center', flexDirection: 'row', justifyContent: 'center' }}
+          onPress={() => router.push('/referrals')}
+        >
+          <Text style={{ color: colors.primary, fontWeight: '700', marginRight: 4 }}>View My Referrals</Text>
+          <ChevronRight size={16} color={colors.primary} />
         </TouchableOpacity>
       </View>
 
@@ -266,8 +345,8 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     color: colors.textSecondary,
   },
   divider: {
-    height: 2,
-    backgroundColor: colors.text,
+    height: 1,
+    backgroundColor: colors.border,
     marginBottom: 12,
   },
   statsRow: {
@@ -386,6 +465,35 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   rowSub: {
     fontSize: 13,
     color: colors.textSecondary,
+    lineHeight: 18,
+  },
+  referralCodeBox: {
+    backgroundColor: isDark ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.7)',
+    padding: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginBottom: 4,
+    borderWidth: 1,
+    borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
+  },
+  referralCodeText: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: colors.text,
+    letterSpacing: 4,
+    fontFamily: 'monospace',
+  },
+  referralBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  referralBtnText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '700',
   },
   listDivider: {
     height: 1,

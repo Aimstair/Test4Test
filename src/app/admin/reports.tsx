@@ -5,6 +5,7 @@ import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCustomAlert } from '../../components/AlertProvider';
 import { supabase } from '../../lib/supabase';
+import Skeleton from '../../components/Skeleton';
 import { useTheme } from '../../theme/ThemeContext';
 
 // Custom hook to fetch all reports for admins
@@ -99,7 +100,21 @@ export default function AdminReports() {
 
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: Math.max(insets.bottom + 20, 60) }]}>
         {isLoading ? (
-          <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 40 }} />
+          <View style={{ marginTop: 20 }}>
+            {[1, 2, 3, 4, 5].map((i) => (
+              <View key={i} style={styles.reportCard}>
+                <View style={styles.reportHeader}>
+                  <Skeleton width={80} height={16} borderRadius={4} />
+                  <Skeleton width={60} height={14} borderRadius={4} style={{ marginLeft: 'auto' }} />
+                </View>
+                <Skeleton width="100%" height={14} borderRadius={4} style={{ marginTop: 12, marginBottom: 8 }} />
+                <Skeleton width="80%" height={14} borderRadius={4} />
+                <View style={[styles.metaBox, { marginTop: 16 }]}>
+                   <Skeleton width="100%" height={40} borderRadius={8} />
+                </View>
+              </View>
+            ))}
+          </View>
         ) : reports && reports.length > 0 ? (
           reports.map(report => (
             <View key={report.id} style={styles.reportCard}>

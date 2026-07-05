@@ -1,4 +1,5 @@
 import * as Notifications from 'expo-notifications';
+import * as Device from 'expo-device';
 import { Platform } from 'react-native';
 import { supabase } from '../lib/supabase';
 
@@ -31,23 +32,54 @@ export const requestNotificationPermissions = async () => {
   return finalStatus === 'granted';
 };
 
+/**
+ * Gets the Expo push token for this device and saves it to the user's profile.
+ * Must be called after authentication.
+ */
+export const registerPushToken = async (userId: string) => {
+  try {
+    if (!Device.isDevice) return; // Push notifications don't work on simulators
+
+    const granted = await requestNotificationPermissions();
+    if (!granted) return;
+
+    const tokenData = await Notifications.getExpoPushTokenAsync({
+      projectId: process.env.EXPO_PUBLIC_PROJECT_ID,
+    });
+    const token = tokenData.data;
+
+    // Save to database so server-side functions can send pushes
+    await supabase.from('users').update({ push_token: token }).eq('id', userId);
+  } catch (e: any) {
+    if (e.message?.includes('FirebaseApp is not initialized')) {
+      console.log('Skipping push token registration: google-services.json not configured in app.json.');
+    } else {
+      console.warn('Failed to register push token:', e);
+    }
+  }
+};
+
 export type NotificationType = 'new_tester' | 'new_review' | 'app_expiry' | 'app_full' | 'daily_reports' | 'subscription' | 'new_proof' | 'check_in' | 'testing_finished';
 
+const PUSH_FUNCTION_URL = process.env.EXPO_PUBLIC_PUSH_FUNCTION_URL;
+
 /**
- * Sends a notification by writing to the database and optionally triggering a local notification.
+ * Sends a notification:
+ * 1. Writes to DB for in-app notification bell
+ * 2. Sends a real push notification via Expo Push API (Edge Function)
  */
 export const sendNotification = async (
-  targetUserId: string, 
-  title: string, 
-  body: string, 
+  targetUserId: string,
+  title: string,
+  body: string,
   type: NotificationType,
-  currentUserId?: string // If target is the current user, we can send a local system notification
+  currentUserId?: string
 ) => {
   try {
     // 1. Check user preferences
     const { data: user, error } = await supabase
       .from('users')
-      .select('notification_prefs')
+      .select('notification_prefs, push_token')
       .eq('id', targetUserId)
       .single();
 
@@ -59,7 +91,7 @@ export const sendNotification = async (
       return;
     }
 
-    // 2. Save to database for in-app notifications
+    // 2. Save to database for in-app notification bell
     await supabase.from('notifications').insert([{
       user_id: targetUserId,
       title,
@@ -67,16 +99,20 @@ export const sendNotification = async (
       type
     }]);
 
-    // 3. Trigger local system notification if applicable
-    // (Without a push server, we can only trigger system notifications on the active device)
-    if (targetUserId === currentUserId) {
+    // 3a. Server-side push via Edge Function (for any user with a push token)
+    if (user.push_token && PUSH_FUNCTION_URL) {
+      fetch(PUSH_FUNCTION_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ push_token: user.push_token, title, body, data: { type } }),
+      }).catch((e) => console.error('Push send error:', e));
+    }
+
+    // 3b. Fallback: local immediate notification if sending to self (active device)
+    if (!user.push_token && targetUserId === currentUserId) {
       await Notifications.scheduleNotificationAsync({
-        content: {
-          title,
-          body,
-          data: { type },
-        },
-        trigger: null, // immediate
+        content: { title, body, data: { type } },
+        trigger: null,
       });
     }
   } catch (e) {

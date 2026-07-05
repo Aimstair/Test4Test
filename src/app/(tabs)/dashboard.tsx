@@ -4,13 +4,15 @@ import * as IntentLauncher from 'expo-intent-launcher';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Bell, Camera, Hexagon, Rocket, Sparkles } from 'lucide-react-native';
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { ActivityIndicator, AppState, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { AppState, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../api/auth';
 import { useContracts, useUploadProof, useUserProfile, useNotifications, useDisputeProof } from '../../api/queries';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCustomAlert } from '../../components/AlertProvider';
 import AppIcon from '../../components/AppIcon';
 import EmptyState from '../../components/EmptyState';
+import Skeleton from '../../components/Skeleton';
 import OnboardingTooltip, { LayoutRect } from '../../components/OnboardingTooltip';
 import UtcCountdown from '../../components/UtcCountdown';
 import { supabase } from '../../lib/supabase';
@@ -18,10 +20,11 @@ import { useTheme } from '../../theme/ThemeContext';
 import { setupDailyReminders } from '../../utils/notifications';
 
 export default function Dashboard() {
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { colors, isDark } = useTheme();
   const styles = getStyles(colors, isDark);
 
-  const router = useRouter();
   const [isFocused, setIsFocused] = useState(false);
 
   useFocusEffect(
@@ -48,9 +51,6 @@ export default function Dashboard() {
     .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
     .filter((c: any, i: number, arr: any[]) => arr.findIndex((x: any) => x.app_id === c.app_id) === i);
 
-  const completedContracts = rawContracts
-    .filter((c: any) => isContractCompleted(c))
-    .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
   const user = userProfile || { tokens: 0, karma: 0 };
   const { data: notifications } = useNotifications(session?.user?.id);
   const unreadCount = (notifications || []).filter((n: any) => !n.is_read).length;
@@ -236,8 +236,28 @@ export default function Dashboard() {
 
   if (loadingProfile || loadingContracts) {
     return (
-      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" color={colors.primary} />
+      <View style={styles.container}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: Math.max(insets.top, 20), paddingHorizontal: 16, marginBottom: 20 }}>
+           <Skeleton width={120} height={24} borderRadius={4} />
+        </View>
+        <ScrollView contentContainerStyle={styles.content}>
+           <View style={{ flexDirection: 'row', gap: 12, marginBottom: 24 }}>
+             <Skeleton flex={1} height={80} borderRadius={12} />
+             <Skeleton flex={1} height={80} borderRadius={12} />
+           </View>
+           {[1, 2, 3].map(i => (
+             <View key={i} style={{ backgroundColor: isDark ? '#1C1C1E' : '#FFFFFF', borderRadius: 16, padding: 16, marginBottom: 16 }}>
+               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                 <Skeleton width={64} height={64} borderRadius={16} />
+                 <View style={{ marginLeft: 16, flex: 1 }}>
+                   <Skeleton width="60%" height={16} borderRadius={4} style={{ marginBottom: 6 }} />
+                   <Skeleton width="40%" height={14} borderRadius={4} style={{ marginBottom: 12 }} />
+                   <Skeleton width="100%" height={8} borderRadius={4} />
+                 </View>
+               </View>
+             </View>
+           ))}
+        </ScrollView>
       </View>
     );
   }
@@ -454,41 +474,7 @@ export default function Dashboard() {
         </TouchableOpacity>
       )}
 
-      {completedContracts.length > 0 && (
-        <>
-          <Text style={styles.sectionTitle}>COMPLETED CONTRACTS</Text>
-          {completedContracts.map((contract: any) => {
-            const app = contract.app;
-            if (!app) return null;
-            const doneCount = contract.days.filter((d: any) => d.status === 'done').length;
-            const totalDays = contract.days.length;
-            return (
-              <TouchableOpacity
-                key={contract.id}
-                style={[styles.contractCard, { borderColor: colors.success, opacity: 0.8 }]}
-                onPress={() => router.push('/test-history' as any)}
-                activeOpacity={0.7}
-              >
-                <View style={styles.contractHeader}>
-                  <View style={styles.appIconPlaceholder}>
-                    <AppIcon url={app.icon_url} size={40} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.appName}>{app.name}</Text>
-                    <Text style={styles.appSub}>{doneCount}/{totalDays} DAYS COMPLETED</Text>
-                  </View>
-                  <View style={[styles.completedBadge]}>
-                    <Text style={styles.completedBadgeText}>✓ DONE</Text>
-                  </View>
-                </View>
-              </TouchableOpacity>
-            );
-          })}
-          <TouchableOpacity style={styles.findBtn} onPress={() => router.push('/test-history' as any)}>
-            <Text style={styles.findBtnText}>VIEW FULL TEST HISTORY</Text>
-          </TouchableOpacity>
-        </>
-      )}
+
 
       {isFocused && (
         <>
@@ -725,7 +711,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   heatmapCell: {
     flex: 1,
-    aspectRatio: 1,
+    height: 24,
     marginHorizontal: 2,
     borderRadius: 4,
   },

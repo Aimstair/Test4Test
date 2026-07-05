@@ -2,11 +2,13 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import { BookOpen, Hexagon, Info, Sparkles, X, Settings2, Rocket } from 'lucide-react-native';
 import React, { useState, useEffect } from 'react';
-import { ActivityIndicator, Modal, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Modal, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useAuth } from '../../api/auth';
 import { useCatalog, useUserProfile } from '../../api/queries';
 import AppIcon from '../../components/AppIcon';
+import Skeleton from '../../components/Skeleton';
 import EmptyState from '../../components/EmptyState';
+import { useCustomAlert } from '../../components/AlertProvider';
 import { useTheme } from '../../theme/ThemeContext';
 
 export default function Studio() {
@@ -14,7 +16,7 @@ export default function Studio() {
   const { colors, isDark } = useTheme();
   const styles = getStyles(colors, isDark);
   const { session } = useAuth();
-  const [showComingSoon, setShowComingSoon] = React.useState(false);
+  const { showAlert } = useCustomAlert();
   const { data: userProfile, isLoading: loadingProfile, refetch: refetchProfile } = useUserProfile(session?.user?.id);
   const { data: catalogData, isLoading: loadingCatalog, refetch: refetchCatalog } = useCatalog();
 
@@ -79,8 +81,27 @@ export default function Studio() {
 
   if (loadingProfile || loadingCatalog) {
     return (
-      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" color={colors.primary} />
+      <View style={styles.container}>
+        <View style={styles.topNav}>
+        </View>
+        <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+           <Skeleton width={120} height={32} borderRadius={4} style={{ marginBottom: 24 }} />
+           <View style={{ marginBottom: 24 }}>
+             <Skeleton width="100%" height={120} borderRadius={12} />
+           </View>
+           {[1, 2, 3].map(i => (
+             <View key={i} style={styles.appCard}>
+               <View style={styles.appHeader}>
+                 <Skeleton width={64} height={64} borderRadius={16} />
+                 <View style={{ marginLeft: 16, flex: 1 }}>
+                   <Skeleton width="60%" height={16} borderRadius={4} style={{ marginBottom: 6 }} />
+                   <Skeleton width="40%" height={14} borderRadius={4} style={{ marginBottom: 12 }} />
+                   <Skeleton width="80%" height={14} borderRadius={4} />
+                 </View>
+               </View>
+             </View>
+           ))}
+        </ScrollView>
       </View>
     );
   }
@@ -203,31 +224,12 @@ export default function Studio() {
               </View>
             </View>
 
-            <TouchableOpacity style={styles.exportBtn} onPress={() => setShowComingSoon(true)}>
+            <TouchableOpacity style={styles.exportBtn} onPress={() => showAlert('Coming Soon', 'This feature is currently under development and will be available in a future update.')}>
               <Text style={styles.exportBtnText}>EXPORT 14-DAY REPORT</Text>
             </TouchableOpacity>
           </TouchableOpacity>
         )
       })}
-
-      {/* Coming Soon Modal */}
-      <Modal visible={showComingSoon} transparent animationType="fade" onRequestClose={() => setShowComingSoon(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <TouchableOpacity style={styles.modalClose} onPress={() => setShowComingSoon(false)}>
-              <X size={20} color={colors.textSecondary} />
-            </TouchableOpacity>
-            <View style={[styles.modalIconCircle, { backgroundColor: isDark ? '#1C2B36' : '#E1F0FF' }]}>
-              <Info size={32} color={colors.primary} />
-            </View>
-            <Text style={styles.modalTitle}>Coming Soon</Text>
-            <Text style={styles.modalDesc}>This feature is currently under development and will be available in a future update.</Text>
-            <TouchableOpacity style={styles.modalBtnPrimary} onPress={() => setShowComingSoon(false)}>
-              <Text style={styles.modalBtnPrimaryText}>Got it</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
 
       {/* First-time Studio Welcome Modal */}
       <Modal visible={showWelcome} transparent animationType="fade">

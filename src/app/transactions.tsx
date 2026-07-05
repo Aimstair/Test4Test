@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../api/auth';
 import { useTransactions } from '../api/queries';
 import { useTheme } from '../theme/ThemeContext';
+import Skeleton from '../components/Skeleton';
 
 export default function Transactions() {
   const router = useRouter();
@@ -33,8 +34,24 @@ export default function Transactions() {
 
   if (isLoading) {
     return (
-      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" color={colors.primary} />
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+            <ChevronLeft size={24} color={colors.text} />
+            <Text style={styles.backText}>Me</Text>
+          </TouchableOpacity>
+        </View>
+        <ScrollView contentContainerStyle={styles.content}>
+          {[1, 2, 3, 4, 5].map((i) => (
+            <View key={i} style={styles.txCard}>
+              <View style={styles.txLeft}>
+                <Skeleton width={150} height={16} borderRadius={4} style={{ marginBottom: 6 }} />
+                <Skeleton width={80} height={12} borderRadius={4} />
+              </View>
+              <Skeleton width={50} height={20} borderRadius={4} />
+            </View>
+          ))}
+        </ScrollView>
       </View>
     );
   }

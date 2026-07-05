@@ -1,19 +1,37 @@
 import { Stack, DarkTheme, DefaultTheme, ThemeProvider } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import * as SplashScreen from 'expo-splash-screen';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AlertProvider } from '../components/AlertProvider';
 import { ThemeProvider as CustomThemeProvider, useTheme } from '../theme/ThemeContext';
-import { requestNotificationPermissions } from '../utils/notifications';
+import { registerPushToken, requestNotificationPermissions } from '../utils/notifications';
+import { useAuth } from '../api/auth';
+import OfflineBanner from '../components/OfflineBanner';
 
 SplashScreen.preventAutoHideAsync();
 
-const queryClient = new QueryClient();
+// 24-hour offline cache so data persists when the user has no connection
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      gcTime: 1000 * 60 * 60 * 24, // 24 hours
+      staleTime: 1000 * 60 * 5,    // 5 minutes before refetch
+      retry: 1,
+    },
+  },
+});
 
 function AppNavigator() {
   const { isDark } = useTheme();
+  const { session } = useAuth();
+
+  // Register device push token whenever auth state resolves to a logged-in user
+  useEffect(() => {
+    if (session?.user?.id) {
+      registerPushToken(session.user.id);
+    }
+  }, [session?.user?.id]);
 
   return (
     <ThemeProvider value={isDark ? DarkTheme : DefaultTheme}>
@@ -33,6 +51,7 @@ function AppNavigator() {
           <Stack.Screen name="transactions" />
           <Stack.Screen name="notifications" />
         </Stack>
+        <OfflineBanner />
         <StatusBar style={isDark ? "light" : "dark"} />
       </AlertProvider>
     </ThemeProvider>

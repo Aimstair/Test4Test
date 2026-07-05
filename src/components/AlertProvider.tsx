@@ -52,32 +52,38 @@ export function AlertProvider({ children }: { children: ReactNode }) {
             {alertData?.title && <Text style={styles.title}>{alertData.title}</Text>}
             {alertData?.message && <Text style={styles.message}>{alertData.message}</Text>}
             
-            <View style={styles.buttonContainer}>
+            <View style={alertData?.buttons?.length === 2 ? styles.buttonContainer : styles.buttonContainerVertical}>
               {alertData?.buttons && alertData.buttons.length > 0 ? (
-                alertData.buttons.map((btn, index) => (
-                  <TouchableOpacity
-                    key={index}
-                    style={[
-                      styles.button,
-                      btn.style === 'cancel' && styles.buttonCancel,
-                      btn.style === 'destructive' && styles.buttonDestructive,
-                    ]}
-                    onPress={() => handlePress(btn.onPress)}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={[
-                      styles.buttonText,
-                      btn.style === 'cancel' && styles.buttonTextCancel,
-                      btn.style === 'destructive' && styles.buttonTextDestructive,
-                    ]}>
-                      {btn.text}
-                    </Text>
-                  </TouchableOpacity>
-                ))
+                alertData.buttons.map((btn, index) => {
+                  const isVertical = alertData.buttons!.length !== 2;
+                  const isLast = index === alertData.buttons!.length - 1;
+                  return (
+                    <TouchableOpacity
+                      key={index}
+                      style={[
+                        isVertical ? styles.buttonVertical : styles.button,
+                        !isVertical && isLast && { borderRightWidth: 0 },
+                        isVertical && index === 0 && { borderTopWidth: StyleSheet.hairlineWidth }
+                      ]}
+                      onPress={() => handlePress(btn.onPress)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={[
+                        styles.buttonText,
+                        btn.style === 'cancel' && styles.buttonTextBold,
+                        btn.style === 'destructive' && styles.buttonTextDestructive,
+                      ]}>
+                        {btn.text}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })
               ) : (
-                <TouchableOpacity style={styles.button} onPress={() => handlePress()} activeOpacity={0.8}>
-                  <Text style={styles.buttonText}>OK</Text>
-                </TouchableOpacity>
+                <View style={styles.buttonContainer}>
+                  <TouchableOpacity style={[styles.button, { borderRightWidth: 0 }]} onPress={() => handlePress()} activeOpacity={0.7}>
+                    <Text style={styles.buttonTextBold}>OK</Text>
+                  </TouchableOpacity>
+                </View>
               )}
             </View>
           </View>
@@ -96,60 +102,73 @@ export const useCustomAlert = () => {
 const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: colors.overlay,
+    backgroundColor: 'rgba(0,0,0,0.4)',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 24,
   },
   card: {
-    width: '100%',
-    backgroundColor: colors.card,
-    borderRadius: 24,
-    padding: 24,
+    width: 270,
+    backgroundColor: isDark ? 'rgba(30,30,30,0.95)' : 'rgba(255,255,255,0.95)',
+    borderRadius: 14,
+    overflow: 'hidden',
     alignItems: 'center',
   },
   title: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: colors.text,
-    marginBottom: 12,
+    fontSize: 17,
+    fontWeight: '600',
+    color: isDark ? '#FFF' : '#000',
+    marginTop: 20,
+    marginBottom: 4,
     textAlign: 'center',
+    paddingHorizontal: 16,
   },
   message: {
-    fontSize: 15,
-    color: colors.textSecondary,
+    fontSize: 13,
+    color: isDark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.7)',
     textAlign: 'center',
-    marginBottom: 24,
-    lineHeight: 22,
+    marginBottom: 20,
+    paddingHorizontal: 16,
+    lineHeight: 18,
   },
   buttonContainer: {
     flexDirection: 'row',
-    gap: 12,
+    width: '100%',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.2)',
+  },
+  buttonContainerVertical: {
+    flexDirection: 'column',
     width: '100%',
   },
   button: {
     flex: 1,
-    backgroundColor: colors.primary,
-    paddingVertical: 14,
-    borderRadius: 12,
+    height: 44,
     alignItems: 'center',
     justifyContent: 'center',
+    borderRightWidth: StyleSheet.hairlineWidth,
+    borderColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.2)',
+  },
+  buttonVertical: {
+    width: '100%',
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.2)',
   },
   buttonText: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '700',
+    color: '#007AFF',
+    fontSize: 17,
+    fontWeight: '400',
   },
-  buttonCancel: {
-    backgroundColor: colors.border,
-  },
-  buttonTextCancel: {
-    color: colors.text,
-  },
-  buttonDestructive: {
-    backgroundColor: isDark ? 'rgba(229, 57, 53, 0.2)' : '#FFEBEE',
+  buttonTextBold: {
+    color: '#007AFF',
+    fontSize: 17,
+    fontWeight: '600',
   },
   buttonTextDestructive: {
-    color: colors.danger,
+    color: '#FF3B30',
+    fontSize: 17,
+    fontWeight: '400',
   },
 });

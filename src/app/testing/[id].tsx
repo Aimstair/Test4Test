@@ -4,6 +4,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ChevronLeft } from 'lucide-react-native';
 import Heatmap from '../../components/Heatmap';
 import AppIcon from '../../components/AppIcon';
+import Skeleton from '../../components/Skeleton';
 import { useAuth } from '../../api/auth';
 import { useContracts, useUploadProof, useForfeitContract } from '../../api/queries';
 import { useCustomAlert } from '../../components/AlertProvider';
@@ -37,8 +38,23 @@ export default function TestingRun() {
 
   if (isLoading) {
     return (
-      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" color={colors.primary} />
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+            <ChevronLeft color={colors.primary} size={24} />
+            <Text style={styles.backText}>DASHBOARD</Text>
+          </TouchableOpacity>
+        </View>
+        <ScrollView contentContainerStyle={styles.content}>
+          <View style={styles.heroCard}>
+            <Skeleton width={48} height={48} borderRadius={12} style={{ marginBottom: 16 }} />
+            <Skeleton width={150} height={24} borderRadius={4} />
+          </View>
+          <View style={styles.heatmapCard}>
+            <Skeleton width={120} height={12} borderRadius={4} style={{ marginBottom: 16 }} />
+            <Skeleton width="100%" height={160} borderRadius={8} />
+          </View>
+        </ScrollView>
       </View>
     );
   }

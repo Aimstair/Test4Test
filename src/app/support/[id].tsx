@@ -7,6 +7,7 @@ import { useAuth } from '../../api/auth';
 import { useReplyToTicket, useSupportTickets, useTicketReplies } from '../../api/queries';
 import { useCustomAlert } from '../../components/AlertProvider';
 import { useTheme } from '../../theme/ThemeContext';
+import Skeleton from '../../components/Skeleton';
 
 export default function TicketDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -46,8 +47,24 @@ export default function TicketDetail() {
 
   if (isLoadingTicket || isLoadingReplies) {
     return (
-      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" color={colors.primary} />
+      <View style={styles.container}>
+        <View style={[styles.header, { marginTop: Math.max(insets.top, 20) }]}>
+          <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+            <ChevronLeft size={24} color={colors.text} />
+            <Text style={styles.backText}>Support</Text>
+          </TouchableOpacity>
+        </View>
+        <ScrollView style={{ padding: 16 }}>
+           <Skeleton width="60%" height={24} borderRadius={4} style={{ marginBottom: 12 }} />
+           <Skeleton width="40%" height={16} borderRadius={4} style={{ marginBottom: 32 }} />
+           
+           <View style={{ alignSelf: 'flex-start', marginBottom: 24, width: '80%' }}>
+              <Skeleton width="100%" height={80} borderRadius={12} />
+           </View>
+           <View style={{ alignSelf: 'flex-end', marginBottom: 24, width: '80%' }}>
+              <Skeleton width="100%" height={80} borderRadius={12} />
+           </View>
+        </ScrollView>
       </View>
     );
   }
@@ -64,8 +81,9 @@ export default function TicketDetail() {
     <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
     >
-      <View style={styles.header}>
+      <View style={[styles.header, { marginTop: Math.max(insets.top, 20) }]}>
         <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
           <ChevronLeft size={24} color={colors.text} />
           <Text style={styles.backText}>Ticket #{ticket.id.slice(0, 6).toUpperCase()}</Text>
@@ -116,7 +134,7 @@ export default function TicketDetail() {
       </ScrollView>
 
       {ticket.status !== 'closed' && (
-        <View style={styles.inputRow}>
+        <View style={[styles.inputRow, { paddingBottom: Math.max(insets.bottom, 20) }]}>
           <TextInput
             style={styles.input}
             placeholder="Type your message..."

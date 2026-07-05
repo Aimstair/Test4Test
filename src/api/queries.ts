@@ -39,7 +39,97 @@ export const useUpdateAutoApprove = () => {
   });
 };
 
+export const useClaimReferral = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ newUserId, referralCode }: { newUserId: string; referralCode: string }) => {
+      // Find the referrer by their code
+      const { data: referrer, error: findError } = await supabase
+        .from('users')
+        .select('id, tokens')
+        .eq('referral_code', referralCode.toUpperCase())
+        .single();
+
+      if (findError || !referrer) {
+        throw new Error('Invalid referral code.');
+      }
+      if (referrer.id === newUserId) {
+        throw new Error('You cannot use your own referral code.');
+      }
+
+      // Check new user hasn't already been rewarded
+      const { data: newUser } = await supabase
+        .from('users')
+        .select('tokens, referral_rewarded')
+        .eq('id', newUserId)
+        .single();
+
+      if (newUser?.referral_rewarded) {
+        return; // Already claimed, silently skip
+      }
+
+      const REFERRAL_BONUS = 50;
+
+      // Award referrer +50 tokens
+      await supabase.from('users').update({ tokens: (referrer.tokens || 0) + REFERRAL_BONUS }).eq('id', referrer.id);
+      await supabase.from('transactions').insert([{
+        user_id: referrer.id,
+        type: 'token_gain',
+        currency: 'tokens',
+        amount: REFERRAL_BONUS,
+        description: 'Referral bonus — your invitee completed their first test!',
+      }]);
+
+      // Award new user +50 tokens and mark as rewarded
+      await supabase.from('users').update({
+        tokens: (newUser?.tokens || 0) + REFERRAL_BONUS,
+        referred_by: referralCode.toUpperCase(),
+        referral_rewarded: true,
+      }).eq('id', newUserId);
+      await supabase.from('transactions').insert([{
+        user_id: newUserId,
+        type: 'token_gain',
+        currency: 'tokens',
+        amount: REFERRAL_BONUS,
+        description: 'Referral bonus — you were invited by a friend!',
+      }]);
+
+      // Notify referrer
+      await supabase.from('notifications').insert([{
+        user_id: referrer.id,
+        title: 'Referral Bonus Earned! 🎉',
+        body: `Your invite just paid off! +${REFERRAL_BONUS} tokens added to your balance.`,
+        type: 'subscription',
+      }]);
+
+      return { success: true };
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['user', variables.newUserId] });
+    },
+  });
+};
+
+export const useReferrals = (referralCode?: string) => {
+  return useQuery({
+    queryKey: ['referrals', referralCode],
+    queryFn: async () => {
+      if (!referralCode) return [];
+      const { data, error } = await supabase
+        .from('users')
+        .select('id, name, avatar_url, created_at, referral_rewarded')
+        .eq('referred_by', referralCode.toUpperCase())
+        .order('created_at', { ascending: false });
+        
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!referralCode
+  });
+};
+
 export const useCatalog = () => {
+
   return useQuery({
     queryKey: ['apps'],
     queryFn: async () => {
@@ -179,6 +269,18 @@ export const useProofQueue = (userId?: string) => {
     queryKey: ['proofQueue', userId],
     queryFn: async () => {
       if (!userId) throw new Error('No user ID');
+      
+      // Step 1: get user's apps
+      const { data: apps } = await supabase.from('apps').select('id').eq('owner_id', userId);
+      const appIds = apps?.map(a => a.id) || [];
+      if (appIds.length === 0) return [];
+
+      // Step 2: get contracts for these apps
+      const { data: contracts } = await supabase.from('contracts').select('id').in('app_id', appIds);
+      const contractIds = contracts?.map(c => c.id) || [];
+      if (contractIds.length === 0) return [];
+
+      // Step 3: get contract_days
       const { data, error } = await supabase
         .from('contract_days')
         .select(`
@@ -189,7 +291,7 @@ export const useProofQueue = (userId?: string) => {
           )
         `)
         .eq('status', 'verified')
-        .eq('contract.app.owner_id', userId);
+        .in('contract_id', contractIds);
         
       if (error) throw error;
       return data;
@@ -203,19 +305,23 @@ export const useApprovedProofsCount = (userId?: string) => {
     queryKey: ['approvedProofs', userId],
     queryFn: async () => {
       if (!userId) throw new Error('No user ID');
+
+      const { data: apps } = await supabase.from('apps').select('id').eq('owner_id', userId);
+      const appIds = apps?.map(a => a.id) || [];
+      if (appIds.length === 0) return 0;
+
+      const { data: contracts } = await supabase.from('contracts').select('id').in('app_id', appIds);
+      const contractIds = contracts?.map(c => c.id) || [];
+      if (contractIds.length === 0) return 0;
+
       const { count, error } = await supabase
         .from('contract_days')
-        .select(`
-          id,
-          contract:contracts!inner(
-            app:apps!inner(owner_id)
-          )
-        `, { count: 'exact', head: true })
+        .select(`id`, { count: 'exact', head: true })
         .eq('status', 'done')
-        .eq('contract.app.owner_id', userId);
+        .in('contract_id', contractIds);
         
       if (error) throw error;
-      return count;
+      return count || 0;
     },
     enabled: !!userId,
   });
@@ -364,10 +470,16 @@ export const useAdminResolveDispute = () => {
         await supabase.from('contract_days').update({ status: 'done', disputed: false }).eq('id', proofId);
         
         const { data: testerData } = await supabase.from('users').select('karma').eq('id', testerId).single();
-        if (testerData) await supabase.from('users').update({ karma: (testerData.karma || 0) + 1 }).eq('id', testerId);
+        if (testerData) {
+          await supabase.from('users').update({ karma: (testerData.karma || 0) + 1 }).eq('id', testerId);
+          await supabase.from('transactions').insert([{ user_id: testerId, type: 'karma_gain', currency: 'karma', amount: 1, description: 'Dispute won (admin overturned)' }]);
+        }
         
         const { data: devData } = await supabase.from('users').select('karma').eq('id', developerId).single();
-        if (devData) await supabase.from('users').update({ karma: (devData.karma || 0) - 5 }).eq('id', developerId);
+        if (devData) {
+          await supabase.from('users').update({ karma: (devData.karma || 0) - 5 }).eq('id', developerId);
+          await supabase.from('transactions').insert([{ user_id: developerId, type: 'karma_loss', currency: 'karma', amount: -5, description: 'Dispute lost (admin overturned)' }]);
+        }
 
         sendNotification(testerId, 'Dispute Won', 'Admin overturned the rejection. +1 Karma.', 'new_proof');
         sendNotification(developerId, 'Dispute Lost', 'Admin overturned your rejection. -5 Karma penalty.', 'new_proof');
@@ -444,11 +556,15 @@ export const useCreateApp = () => {
       expiresAt.setDate(expiresAt.getDate() + days);
       const expiresAtStr = expiresAt.toISOString();
 
+      // Generate a unique listing_id for this new listing cycle
+      const listing_id = `${appData.owner_id}_${Date.now()}`;
+
       // Insert app
       const { data, error } = await supabase.from('apps').insert([{ 
         ...appData, 
         active: true,
-        expires_at: expiresAtStr
+        expires_at: expiresAtStr,
+        listing_id,
       }]).select().single();
       
       if (error) {
@@ -457,6 +573,7 @@ export const useCreateApp = () => {
           const { data: u } = await supabase.from('users').select('tokens').eq('id', appData.owner_id).single();
           if (u) {
             await supabase.from('users').update({ tokens: u.tokens + tokenCost }).eq('id', appData.owner_id);
+            await supabase.from('transactions').insert([{ user_id: appData.owner_id, type: 'token_gain', currency: 'tokens', amount: tokenCost, description: 'Token refund (App creation failed)' }]);
           }
         }
         throw error;
@@ -500,13 +617,17 @@ export const useRenewApp = () => {
       expiresAt.setDate(expiresAt.getDate() + days);
       const expiresAtStr = expiresAt.toISOString();
 
+      // Generate a FRESH listing_id so previous testers can re-join this new cycle
+      const new_listing_id = `${owner_id}_${Date.now()}`;
+
       const { data, error } = await supabase.from('apps').update({ 
         tier,
         tester_limit,
         bounty,
         active: true,
         expires_at: expiresAtStr,
-        app_type: app_type || 'Testing'
+        app_type: app_type || 'Testing',
+        listing_id: new_listing_id,
       }).eq('id', appId).select().single();
       
       if (error) {
@@ -674,33 +795,35 @@ export const useStartContract = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ appId, testerId, proofUrl, rateProofUrl }: { appId: string; testerId: string; proofUrl?: string; rateProofUrl?: string }) => {
-      // Prevent duplicate active contracts for the same app+tester
-      const { data: existing } = await supabase
-        .from('contracts')
-        .select('id')
-        .eq('app_id', appId)
-        .eq('tester_id', testerId)
-        .eq('status', 'active')
-        .limit(1);
-
-      if (existing && existing.length > 0) {
-        throw new Error('You already have an active test contract for this app.');
-      }
-
-      // Snapshot app data
-      const { data: appData } = await supabase.from('apps').select('boost_ends_at, bounty, name, app_type, owner_id, tester_limit, tier').eq('id', appId).single();
+      // Snapshot app data (needed for listing_id and owner validation)
+      const { data: appData } = await supabase.from('apps').select('boost_ends_at, bounty, name, app_type, owner_id, tester_limit, tier, listing_id').eq('id', appId).single();
       
       // Bug 4 Fix: Prevent developers from testing their own apps
       if (appData?.owner_id === testerId) {
         throw new Error('Developers cannot test their own apps.');
       }
+
+      // Prevent duplicate contracts scoped to the CURRENT listing cycle only.
+      // This allows testers to re-join if a developer re-lists for a new round.
+      const { data: existing } = await supabase
+        .from('contracts')
+        .select('id')
+        .eq('listing_id', appData?.listing_id ?? appId)
+        .eq('tester_id', testerId)
+        .in('status', ['active', 'completed'])
+        .limit(1);
+
+      if (existing && existing.length > 0) {
+        throw new Error('You already tested this app in the current listing cycle.');
+      }
+
       const isBoosted = appData?.boost_ends_at && new Date(appData.boost_ends_at) > new Date();
       const bonusBounty = isBoosted ? 10 : 0;
 
-      // Create contract (no token escrow — tokens are only earned, never locked)
+      // Create contract, storing the listing_id for future scope checks
       const { data: contract, error } = await supabase
         .from('contracts')
-        .insert([{ app_id: appId, tester_id: testerId, bonus_bounty: bonusBounty, rate_proof_url: rateProofUrl }])
+        .insert([{ app_id: appId, tester_id: testerId, bonus_bounty: bonusBounty, rate_proof_url: rateProofUrl, listing_id: appData?.listing_id ?? appId }])
         .select()
         .single();
       
@@ -778,6 +901,35 @@ export const useUploadProof = () => {
         sendNotification((contract.apps as any).owner_id, 'Proof Submitted', 'A tester submitted a proof for review.', 'new_proof', testerId);
       }
 
+      // Referral reward: trigger on Day 1 (the first proof submitted by a new user)
+      if (dayNumber === 1 && testerId) {
+        const { data: testerData } = await supabase
+          .from('users')
+          .select('referred_by, referral_rewarded, tokens')
+          .eq('id', testerId)
+          .single();
+
+        if (testerData?.referred_by && !testerData.referral_rewarded) {
+          // Find referrer
+          const { data: referrer } = await supabase
+            .from('users')
+            .select('id, tokens')
+            .eq('referral_code', testerData.referred_by)
+            .single();
+
+          if (referrer) {
+            const BONUS = 50;
+            // Reward referrer
+            await supabase.from('users').update({ tokens: (referrer.tokens || 0) + BONUS }).eq('id', referrer.id);
+            await supabase.from('transactions').insert([{ user_id: referrer.id, type: 'token_gain', currency: 'tokens', amount: BONUS, description: 'Referral bonus — your invitee completed their first test!' }]);
+            await supabase.from('notifications').insert([{ user_id: referrer.id, title: 'Referral Bonus Earned! 🎉', body: `Your invite just paid off! +${BONUS} tokens added to your balance.`, type: 'subscription' }]);
+            // Reward new user + mark rewarded
+            await supabase.from('users').update({ tokens: (testerData.tokens || 0) + BONUS, referral_rewarded: true }).eq('id', testerId);
+            await supabase.from('transactions').insert([{ user_id: testerId, type: 'token_gain', currency: 'tokens', amount: BONUS, description: 'Referral bonus — you were invited by a friend!' }]);
+          }
+        }
+      }
+
       return data;
     },
     onSuccess: (_, variables) => {
@@ -788,6 +940,7 @@ export const useUploadProof = () => {
     },
   });
 };
+
 
 export const useForfeitContract = () => {
   const queryClient = useQueryClient();
@@ -935,6 +1088,18 @@ export const useCreateReport = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (reportData: { app_id: string, reporter_id: string, type: string, title: string, description?: string, file_url?: string }) => {
+      // Check if user already reported this app
+      const { data: existing, error: checkError } = await supabase
+        .from('reports')
+        .select('id')
+        .eq('app_id', reportData.app_id)
+        .eq('reporter_id', reportData.reporter_id)
+        .limit(1);
+
+      if (existing && existing.length > 0) {
+        throw new Error('You have already reported this app.');
+      }
+
       const { data, error } = await supabase.from('reports').insert([reportData]).select().single();
       if (error) throw error;
       return data;

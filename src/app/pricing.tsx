@@ -2,10 +2,10 @@ import { useRouter } from 'expo-router';
 import { Check, ChevronLeft } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import Purchases, { PurchasesOffering } from 'react-native-purchases';
+import Purchases, { PurchasesOffering, CustomerInfo } from 'react-native-purchases';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../api/auth';
-import { usePurchaseSubscription, usePurchaseTokens } from '../api/queries';
+import { usePurchaseSubscription, usePurchaseTokens, useUserProfile } from '../api/queries';
 import { useCustomAlert } from '../components/AlertProvider';
 import { useTheme } from '../theme/ThemeContext';
 
@@ -20,7 +20,9 @@ export default function Pricing() {
   const { mutate: purchaseTokens, isPending: tokPending } = usePurchaseTokens();
   const isPending = subPending || tokPending;
   const { showAlert } = useCustomAlert();
+  const { data: userProfile } = useUserProfile(session?.user?.id);
   const [offerings, setOfferings] = useState<PurchasesOffering | null>(null);
+  const [customerInfo, setCustomerInfo] = useState<CustomerInfo | null>(null);
   const [rcInitializing, setRcInitializing] = useState(true);
 
   useEffect(() => {
@@ -32,6 +34,7 @@ export default function Pricing() {
           return;
         }
 
+        Purchases.setLogLevel(Purchases.LOG_LEVEL.ERROR);
         Purchases.configure({ apiKey: process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_KEY });
 
         if (session?.user?.id) {
@@ -42,6 +45,9 @@ export default function Pricing() {
         if (offers.current !== null) {
           setOfferings(offers.current);
         }
+
+        const info = await Purchases.getCustomerInfo();
+        setCustomerInfo(info);
       } catch (e: any) {
         console.warn('RevenueCat config error:', e);
       } finally {
@@ -112,6 +118,41 @@ export default function Pricing() {
     }
   };
 
+  const getActiveSubscriptionStatus = (tier: 'Pro' | 'Pro+') => {
+    const currentTier = userProfile?.subscription_tier;
+    if (currentTier === tier) {
+      let expDateObj: Date | null = null;
+      
+      if (customerInfo) {
+        const activeEnts = Object.values(customerInfo.entitlements.active);
+        if (activeEnts.length > 0 && activeEnts[0].expirationDate) {
+          expDateObj = new Date(activeEnts[0].expirationDate);
+        }
+      } else if (userProfile?.subscription_expires_at) {
+        expDateObj = new Date(userProfile.subscription_expires_at);
+      }
+
+      if (expDateObj) {
+        const diffMs = expDateObj.getTime() - new Date().getTime();
+        const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+        if (diffDays > 0) {
+          return `Active Subscription (${diffDays} days)`;
+        }
+      }
+      return 'Active Subscription';
+    }
+    if (currentTier === 'Pro+' && tier === 'Pro') {
+      return 'Included in Pro+';
+    }
+    return null;
+  };
+
+  const isTierDisabled = (tier: 'Pro' | 'Pro+') => {
+    const currentTier = userProfile?.subscription_tier;
+    if (currentTier === 'Pro+' && tier === 'Pro') return true;
+    return rcInitializing || isPending || currentTier === tier;
+  };
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -122,13 +163,6 @@ export default function Pricing() {
       </View>
 
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: Math.max(insets.bottom + 20, 60) }]}>
-        {rcInitializing && (
-          <View style={{ padding: 20, alignItems: 'center' }}>
-            <ActivityIndicator size="small" color={colors.primary} />
-            <Text style={{ color: colors.textSecondary, marginTop: 8 }}>Loading prices...</Text>
-          </View>
-        )}
-
         <View style={styles.sectionHeaderRow}>
           <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>SUBSCRIPTION</Text>
 
@@ -229,11 +263,13 @@ export default function Pricing() {
           </View>
 
           <TouchableOpacity
-            style={styles.btnBlack}
+            style={[styles.btnBlack, isTierDisabled('Pro') && { opacity: 0.6 }]}
             onPress={() => handlePurchase('Pro', billing === 'monthly' ? 'test4test_pro_monthly' : 'test4test_pro_yearly')}
-            disabled={isPending}
+            disabled={isTierDisabled('Pro')}
           >
-            <Text style={styles.btnTextWhite}>{isPending ? 'Processing...' : 'Upgrade to Pro'}</Text>
+            <Text style={styles.btnTextWhite}>
+              {getActiveSubscriptionStatus('Pro') || (rcInitializing ? 'Connecting...' : isPending ? 'Processing...' : 'Upgrade to Pro')}
+            </Text>
           </TouchableOpacity>
         </View>
 
@@ -279,34 +315,48 @@ export default function Pricing() {
           </View>
 
           <TouchableOpacity
-            style={styles.btnBlack}
+            style={[styles.btnBlack, isTierDisabled('Pro+') && { opacity: 0.6 }]}
             onPress={() => handlePurchase('Pro+', billing === 'monthly' ? 'test4test_pro_plus_monthly' : 'test4test_pro_plus_yearly')}
-            disabled={isPending}
+            disabled={isTierDisabled('Pro+')}
           >
-            <Text style={styles.btnTextWhite}>{isPending ? 'Processing...' : 'Choose Pro+'}</Text>
+            <Text style={styles.btnTextWhite}>
+              {getActiveSubscriptionStatus('Pro+') || (rcInitializing ? 'Connecting...' : isPending ? 'Processing...' : 'Choose Pro+')}
+            </Text>
           </TouchableOpacity>
         </View>
 
         <Text style={[styles.sectionTitle, { marginTop: 16 }]}>TOKEN PACKS</Text>
 
         <View style={styles.tokenPacksRow}>
-          <TouchableOpacity style={styles.tokenCard} onPress={() => handleBuyTokens(50, 'tokens_50')} disabled={isPending}>
+          <TouchableOpacity 
+            style={[styles.tokenCard, (isPending || rcInitializing) && { opacity: 0.6 }]} 
+            onPress={() => handleBuyTokens(50, 'tokens_50')} 
+            disabled={isPending || rcInitializing}
+          >
             <Text style={styles.tokenValue}>50</Text>
             <Text style={styles.tokenLabel}>tokens</Text>
-            <Text style={styles.tokenPrice}>$1.99</Text>
+            <Text style={styles.tokenPrice}>{rcInitializing ? '...' : '$1.99'}</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={[styles.tokenCard, styles.tokenCardBest]} onPress={() => handleBuyTokens(200, 'tokens_200')} disabled={isPending}>
+          <TouchableOpacity 
+            style={[styles.tokenCard, styles.tokenCardBest, (isPending || rcInitializing) && { opacity: 0.6 }]} 
+            onPress={() => handleBuyTokens(200, 'tokens_200')} 
+            disabled={isPending || rcInitializing}
+          >
             <Text style={styles.bestValueText}>BEST VALUE</Text>
             <Text style={styles.tokenValue}>200</Text>
             <Text style={styles.tokenLabel}>tokens</Text>
-            <Text style={styles.tokenPrice}>$4.99</Text>
+            <Text style={styles.tokenPrice}>{rcInitializing ? '...' : '$4.99'}</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.tokenCard} onPress={() => handleBuyTokens(500, 'tokens_500')} disabled={isPending}>
+          <TouchableOpacity 
+            style={[styles.tokenCard, (isPending || rcInitializing) && { opacity: 0.6 }]} 
+            onPress={() => handleBuyTokens(500, 'tokens_500')} 
+            disabled={isPending || rcInitializing}
+          >
             <Text style={styles.tokenValue}>500</Text>
             <Text style={styles.tokenLabel}>tokens</Text>
-            <Text style={styles.tokenPrice}>$9.99</Text>
+            <Text style={styles.tokenPrice}>{rcInitializing ? '...' : '$9.99'}</Text>
           </TouchableOpacity>
         </View>
 

@@ -83,8 +83,9 @@ export default function AdminTicketDetail() {
     <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
     >
-      <View style={styles.header}>
+      <View style={[styles.header, { marginTop: Math.max(insets.top, 20) }]}>
         <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
           <ChevronLeft size={24} color={colors.text} />
           <Text style={styles.backText}>Manage #{ticket.id.slice(0, 6).toUpperCase()}</Text>
@@ -137,7 +138,7 @@ export default function AdminTicketDetail() {
       </ScrollView>
 
       {ticket.status !== 'resolved' && ticket.status !== 'closed' && (
-        <View style={styles.inputRow}>
+        <View style={[styles.inputRow, { paddingBottom: Math.max(insets.bottom, 20) }]}>
           <TextInput
             style={styles.input}
             placeholder="Type admin response..."

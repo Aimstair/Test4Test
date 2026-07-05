@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../api/auth';
 import { useContracts } from '../api/queries';
 import { useTheme } from '../theme/ThemeContext';
+import Skeleton from '../components/Skeleton';
 
 export default function TestHistory() {
   const router = useRouter();
@@ -47,9 +48,24 @@ export default function TestHistory() {
       </View>
 
       {isLoading ? (
-        <View style={styles.center}>
-          <ActivityIndicator size="large" color={colors.primary} />
-        </View>
+        <ScrollView contentContainerStyle={[styles.content, { paddingBottom: Math.max(insets.bottom + 20, 60) }]}>
+          {[1, 2, 3].map((i) => (
+            <View key={i} style={styles.card}>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Skeleton width={48} height={48} borderRadius={10} />
+                <View style={[styles.cardInfo, { marginLeft: 16 }]}>
+                  <Skeleton width={150} height={16} borderRadius={4} style={{ marginBottom: 6 }} />
+                  <Skeleton width={100} height={14} borderRadius={4} />
+                </View>
+              </View>
+              <View style={{ height: 1, backgroundColor: colors.border, marginVertical: 12 }} />
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Skeleton width={80} height={14} borderRadius={4} />
+                <Skeleton width={120} height={14} borderRadius={4} />
+              </View>
+            </View>
+          ))}
+        </ScrollView>
       ) : historyContracts.length === 0 ? (
         <View style={styles.center}>
           <Star size={48} color={colors.textSecondary} strokeWidth={1.5} />

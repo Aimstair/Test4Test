@@ -5,10 +5,12 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { AlertTriangle, Camera, CheckCircle, ChevronLeft, Clock, ExternalLink, Play, Store, X } from 'lucide-react-native';
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, AppState, Linking, Modal, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../api/auth';
-import { useCatalog, useCreateReport, useStartContract } from '../../api/queries';
+import { useCatalog, useCreateReport, useReports, useStartContract, useUserProfile } from '../../api/queries';
 import { useCustomAlert } from '../../components/AlertProvider';
 import AppIcon from '../../components/AppIcon';
+import Skeleton from '../../components/Skeleton';
 import { supabase } from '../../lib/supabase';
 import { useTheme } from '../../theme/ThemeContext';
 
@@ -18,8 +20,10 @@ export default function Setup() {
   const { session } = useAuth();
   const { showAlert } = useCustomAlert();
   const { data: catalog, isLoading, refetch: refetchCatalog } = useCatalog();
+  const { data: reports } = useReports(id);
   const { mutate: startContract, isPending } = useStartContract();
   const { colors, isDark } = useTheme();
+  const insets = useSafeAreaInsets();
   const styles = getStyles(colors, isDark);
 
   const [activeStep, setActiveStep] = useState(1);
@@ -98,7 +102,7 @@ export default function Setup() {
   useEffect(() => {
     if (timer <= 0 && isTimerRunning) {
       setIsTimerRunning(false);
-      handleStepComplete(3);
+      handleStepComplete(STEP_LAUNCH);
     }
   }, [timer, isTimerRunning]);
 
@@ -133,8 +137,27 @@ export default function Setup() {
 
   if (isLoading) {
     return (
-      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" color={colors.primary} />
+      <View style={styles.container}>
+        <View style={[styles.header, { marginTop: Math.max(insets.top, 20) }]}>
+          <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+            <ChevronLeft color={colors.text} size={24} />
+            <Text style={styles.backText}>Back</Text>
+          </TouchableOpacity>
+        </View>
+        <ScrollView contentContainerStyle={styles.content}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: isDark ? '#1C1C1E' : '#FFFFFF', padding: 16, borderRadius: 16 }}>
+            <Skeleton width={64} height={64} borderRadius={16} />
+            <View style={{ marginLeft: 16 }}>
+              <Skeleton width={120} height={20} borderRadius={4} style={{ marginBottom: 6 }} />
+              <Skeleton width={80} height={14} borderRadius={4} />
+            </View>
+          </View>
+          <View style={{ marginTop: 24 }}>
+             <Skeleton width="100%" height={100} borderRadius={12} style={{ marginBottom: 16 }} />
+             <Skeleton width="100%" height={100} borderRadius={12} style={{ marginBottom: 16 }} />
+             <Skeleton width="100%" height={100} borderRadius={12} />
+          </View>
+        </ScrollView>
       </View>
     );
   }
@@ -579,9 +602,11 @@ export default function Setup() {
                   <Text style={styles.modalBtnPrimaryText}>Join Google Group & Restart</Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity style={styles.modalBtnSecondary} onPress={() => setModalView('report')}>
-                  <Text style={styles.modalBtnSecondaryText}>Report App</Text>
-                </TouchableOpacity>
+                {(!reports || !reports.some(r => r.reporter_id === session?.user?.id)) && (
+                  <TouchableOpacity style={styles.modalBtnSecondary} onPress={() => setModalView('report')}>
+                    <Text style={styles.modalBtnSecondaryText}>Report App</Text>
+                  </TouchableOpacity>
+                )}
               </>
             ) : modalView === 'report' ? (
               <>

@@ -26,6 +26,7 @@ export default function Onboarding() {
   const [loadingAuth, setLoadingAuth] = useState(false);
   const [authUser, setAuthUser] = useState<any>(null);
   const [editName, setEditName] = useState('');
+  const [referralCode, setReferralCode] = useState('');
   const [editAvatar, setEditAvatar] = useState('');
   const [editAvatarBase64, setEditAvatarBase64] = useState('');
   const [deviceInfo, setDeviceInfo] = useState({ os: '', device: '', country: '' });
@@ -76,6 +77,7 @@ export default function Onboarding() {
           device: deviceInfo.device,
           os: deviceInfo.os,
           country: deviceInfo.country,
+          ...(referralCode.trim() ? { referred_by: referralCode.trim().toUpperCase() } : {}),
           ...(finalAvatarUrl ? { avatar_url: finalAvatarUrl } : {})
         }).eq('id', userId);
       }
@@ -287,6 +289,22 @@ export default function Onboarding() {
         <Text style={[styles.cardDesc, { marginTop: 16, fontSize: 13 }]}>
           By tapping "Complete Profile", you agree to our Terms of Service and Privacy Policy.
         </Text>
+      </View>
+
+      {/* Referral Code */}
+      <View style={[styles.card, { marginTop: 12 }]}>
+        <Text style={styles.cardTitle}>Invite Code (Optional)</Text>
+        <Text style={styles.cardDesc}>
+          Were you invited by a friend? Enter their code now to get a 50 Token bonus on your first test.
+        </Text>
+        <TextInput
+          style={[styles.profileName, { borderBottomWidth: 1, borderBottomColor: colors.border, paddingVertical: 8, marginTop: 12, fontSize: 16 }]}
+          value={referralCode}
+          onChangeText={setReferralCode}
+          placeholder="e.g. A1B2C3D4"
+          placeholderTextColor={colors.textSecondary}
+          autoCapitalize="characters"
+        />
       </View>
 
       <View style={{ flex: 1 }} />

@@ -7,6 +7,7 @@ import { useAuth } from '../../api/auth';
 import { useCatalog, useContracts, useCreateReview, useReports, useReviews, useUserProfile } from '../../api/queries';
 import { useCustomAlert } from '../../components/AlertProvider';
 import AppIcon from '../../components/AppIcon';
+import Skeleton from '../../components/Skeleton';
 import { useTheme } from '../../theme/ThemeContext';
 
 const COUNTRIES = [
@@ -53,8 +54,31 @@ export default function AppDetail() {
 
   if (isLoading) {
     return (
-      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" color={colors.primary} />
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+            <ChevronLeft size={24} color={colors.text} />
+            <Text style={styles.backText}>Catalog</Text>
+          </TouchableOpacity>
+        </View>
+        <ScrollView contentContainerStyle={styles.content}>
+          <View style={styles.appCard}>
+            <View style={styles.appHeaderRow}>
+              <View style={styles.appIconPlaceholder}>
+                <Skeleton width={64} height={64} borderRadius={16} />
+              </View>
+              <View style={styles.appTitleCol}>
+                <Skeleton width={150} height={20} borderRadius={4} style={{ marginBottom: 4 }} />
+                <Skeleton width={100} height={14} borderRadius={4} style={{ marginBottom: 12 }} />
+                <Skeleton width={200} height={20} borderRadius={4} />
+              </View>
+            </View>
+          </View>
+          <View style={{ marginTop: 24, paddingHorizontal: 16 }}>
+            <Skeleton width="100%" height={120} borderRadius={12} style={{ marginBottom: 16 }} />
+            <Skeleton width="100%" height={80} borderRadius={12} />
+          </View>
+        </ScrollView>
       </View>
     );
   }
@@ -84,7 +108,10 @@ export default function AppDetail() {
   const hasReviewed = reviews?.some((r: any) => r.reviewer_id === session?.user?.id) || false;
 
   const isOwner = app.owner_id === session?.user?.id;
-  const existingContract = userContracts?.find((c: any) => c.app_id === app.id && c.status !== 'rejected');
+  // Scope to current listing_id so testers can re-join a re-listed app
+  const existingContract = userContracts?.find(
+    (c: any) => c.listing_id === app.listing_id && c.status !== 'rejected' && c.status !== 'failed'
+  );
 
   const handlePostReview = () => {
     if (!content.trim()) return;
@@ -126,8 +153,8 @@ export default function AppDetail() {
               <AppIcon url={app.icon_url} size={64} />
             </View>
             <View style={styles.appTitleCol}>
-              <Text style={styles.appName}>{app.name}</Text>
-              <Text style={styles.appOwner}>by {app.owner_name || 'Developer'}</Text>
+              <Text style={styles.appName} numberOfLines={2} ellipsizeMode="tail">{app.name}</Text>
+              <Text style={styles.appOwner} numberOfLines={1} ellipsizeMode="tail">by {app.owner?.name || 'Developer'}</Text>
               <View style={styles.tagsRow}>
                 <View style={[styles.tierBadge, app.tier === 'Pro+' && styles.tierBadgeBlack]}>
                   <Text style={[styles.tierText, app.tier === 'Pro+' && { color: isDark ? '#000' : '#fff' }]}>
@@ -158,7 +185,9 @@ export default function AppDetail() {
           </View>
 
           <View style={styles.divider} />
-          <Text style={styles.blurbText}>{app.blurb}</Text>
+          <Text style={styles.blurbText}>
+            {app.blurb && app.blurb.length > 50 ? app.blurb.substring(0, 50) + '...' : app.blurb}
+          </Text>
         </View>
 
         {reports && reports.length > 0 && (

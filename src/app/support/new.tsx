@@ -107,7 +107,7 @@ export default function NewSupportTicket() {
 
       </ScrollView>
 
-      <View style={styles.footer}>
+      <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 20) }]}>
         <TouchableOpacity style={styles.submitBtn} onPress={handleSubmit} disabled={isPending}>
           {isPending ? (
             <ActivityIndicator color="#fff" />

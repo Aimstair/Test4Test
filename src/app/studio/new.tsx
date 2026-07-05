@@ -1,12 +1,12 @@
 import { decode } from 'base64-arraybuffer';
 import * as Clipboard from 'expo-clipboard';
 import * as ImagePicker from 'expo-image-picker';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Check, ChevronLeft, Image as ImageIcon } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Animated, Image as RNImage, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, Modal } from 'react-native';
+import { ActivityIndicator, Animated, Modal, Image as RNImage, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useAuth } from '../../api/auth';
-import { useCreateApp, useUserProfile, useCatalog, useRenewApp } from '../../api/queries';
+import { useCatalog, useCreateApp, useRenewApp, useUserProfile } from '../../api/queries';
 import { useCustomAlert } from '../../components/AlertProvider';
 import { supabase } from '../../lib/supabase';
 import { useTheme } from '../../theme/ThemeContext';
@@ -51,7 +51,6 @@ export default function NewApp() {
   const [iconUrl, setIconUrl] = useState('');
   const [iconBase64, setIconBase64] = useState('');
   const [isUploading, setIsUploading] = useState(false);
-  const [showTokenModal, setShowTokenModal] = useState(false);
 
   // Dynamic cost calculation
   let displayTesterLimit = appType === 'Production' ? 24 : 12;
@@ -67,7 +66,7 @@ export default function NewApp() {
   let activeAppLimit = 1;
   if (subscriptionTier === 'Pro') activeAppLimit = 5;
   if (subscriptionTier === 'Pro+') activeAppLimit = 10;
-  
+
   const activeAppsCount = catalogData?.filter((app: any) => app.owner_id === session?.user?.id && app.active !== false).length || 0;
 
   // Automatically extract package name from URL if possible
@@ -179,7 +178,11 @@ export default function NewApp() {
     }
 
     if ((userProfile?.tokens || 0) < tokenCost) {
-      setShowTokenModal(true);
+      setIsUploading(false);
+      showAlert('Insufficient Tokens', `You need ${tokenCost} tokens to publish this app. You currently have ${userProfile?.tokens || 0}.`, [
+        { text: 'Dismiss', style: 'cancel' },
+        { text: 'Go to Store', onPress: () => router.push('/pricing') }
+      ]);
       return;
     }
 
@@ -276,13 +279,13 @@ export default function NewApp() {
 
         <Text style={styles.label}>APP TYPE</Text>
         <View style={styles.segmentContainer}>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[styles.segmentBtn, appType === 'Testing' && styles.segmentBtnActive]}
             onPress={() => setAppType('Testing')}
           >
             <Text style={[styles.segmentText, appType === 'Testing' && styles.segmentTextActive]}>14-Day Testing</Text>
           </TouchableOpacity>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[styles.segmentBtn, appType === 'Production' && styles.segmentBtnActive]}
             onPress={() => setAppType('Production')}
           >
@@ -304,13 +307,17 @@ export default function NewApp() {
           )}
         </TouchableOpacity>
 
-        <Text style={styles.label}>APP NAME</Text>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 8, marginTop: 16 }}>
+          <Text style={[styles.label, { marginBottom: 0, marginTop: 0 }]}>APP NAME</Text>
+          <Text style={{ fontSize: 10, color: colors.textSecondary, fontWeight: '800' }}>{name.length}/30</Text>
+        </View>
         <TextInput
           style={styles.input}
           placeholder="MyApp"
           placeholderTextColor={colors.placeholder}
           value={name}
           onChangeText={setName}
+          maxLength={30}
         />
 
         <Text style={styles.label}>ANDROID PACKAGE NAME</Text>
@@ -323,7 +330,10 @@ export default function NewApp() {
           value={packageName}
         />
 
-        <Text style={styles.label}>DESCRIPTION</Text>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 8, marginTop: 16 }}>
+          <Text style={[styles.label, { marginBottom: 0, marginTop: 0 }]}>DESCRIPTION</Text>
+          <Text style={{ fontSize: 10, color: colors.textSecondary, fontWeight: '800' }}>{blurb.length}/50</Text>
+        </View>
         <TextInput
           style={[styles.input, styles.textArea]}
           placeholder="What does it do?"
@@ -331,12 +341,13 @@ export default function NewApp() {
           value={blurb}
           onChangeText={setBlurb}
           multiline
+          maxLength={50}
         />
 
-        <Text style={styles.label}>PLAY CONSOLE OPT-IN URL</Text>
+        <Text style={styles.label}>{appType === 'Production' ? 'PLAY STORE APP URL' : 'PLAY CONSOLE OPT-IN ANDROID URL'}</Text>
         <TextInput
           style={styles.input}
-          placeholder="https://play.google.com/..."
+          placeholder="https://play.google.com/store/..."
           placeholderTextColor={colors.placeholder}
           value={url}
           onChangeText={setUrl}
@@ -351,7 +362,7 @@ export default function NewApp() {
           >
             <Text style={[styles.tierTitle, tier === 'Basic' && styles.tierTextActive]}>Basic</Text>
             <Text style={[styles.tierSub, tier === 'Basic' && styles.tierTextActive]}>12 TESTERS</Text>
-            <Text style={[styles.tierSub, tier === 'Basic' && styles.tierTextActive]}>{subscriptionTier === 'Pro+' ? 'UNLIMITED' : '14 DAYS'}</Text>
+            <Text style={[styles.tierSub, tier === 'Basic' && styles.tierTextActive]}>{appType === 'Production' ? '7 DAYS' : subscriptionTier === 'Pro+' ? 'UNLIMITED' : '14 DAYS'}</Text>
             <Text style={[styles.tierSub2, tier === 'Basic' && styles.tierTextActive, subscriptionTier === 'Pro+' || subscriptionTier === 'Pro' ? styles.freeText : {}]}>
               {subscriptionTier === 'Pro+' || subscriptionTier === 'Pro' ? 'Free' : '50 tokens'}
             </Text>
@@ -363,7 +374,7 @@ export default function NewApp() {
           >
             <Text style={[styles.tierTitle, tier === 'Pro' && styles.tierTextActive]}>Pro</Text>
             <Text style={[styles.tierSub, tier === 'Pro' && styles.tierTextActive]}>25 TESTERS</Text>
-            <Text style={[styles.tierSub, tier === 'Pro' && styles.tierTextActive]}>{subscriptionTier === 'Pro+' ? 'UNLIMITED' : '20 DAYS'}</Text>
+            <Text style={[styles.tierSub, tier === 'Pro' && styles.tierTextActive]}>{appType === 'Production' ? '7 DAYS' : subscriptionTier === 'Pro+' ? 'UNLIMITED' : '20 DAYS'}</Text>
             <Text style={[styles.tierSub2, tier === 'Pro' && styles.tierTextActive, subscriptionTier === 'Pro+' || subscriptionTier === 'Pro' ? styles.freeText : {}]}>
               {subscriptionTier === 'Pro+' || subscriptionTier === 'Pro' ? 'Free' : '150 tokens'}
             </Text>
@@ -375,7 +386,7 @@ export default function NewApp() {
           >
             <Text style={[styles.tierTitle, tier === 'Pro+' && styles.tierTextActive]}>Pro+</Text>
             <Text style={[styles.tierSub, tier === 'Pro+' && styles.tierTextActive]}>50 TESTERS</Text>
-            <Text style={[styles.tierSub, tier === 'Pro+' && styles.tierTextActive]}>{subscriptionTier === 'Pro+' ? 'UNLIMITED' : '30 DAYS'}</Text>
+            <Text style={[styles.tierSub, tier === 'Pro+' && styles.tierTextActive]}>{appType === 'Production' ? '7 DAYS' : subscriptionTier === 'Pro+' ? 'UNLIMITED' : '30 DAYS'}</Text>
             <Text style={[styles.tierSub2, tier === 'Pro+' && styles.tierTextActive, subscriptionTier === 'Pro+' ? styles.freeText : {}]}>
               {subscriptionTier === 'Pro+' ? 'Free' : '300 tokens'}
             </Text>
@@ -445,28 +456,6 @@ export default function NewApp() {
           <Text style={styles.toastText}>Email successfully copied!</Text>
         </Animated.View>
       )}
-
-      <Modal visible={showTokenModal} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Insufficient Tokens</Text>
-            <Text style={styles.modalText}>
-              You need {tokenCost} tokens to publish this app. You currently have {userProfile?.tokens || 0}.
-            </Text>
-            <View style={styles.modalActions}>
-              <TouchableOpacity style={styles.modalBtnCancel} onPress={() => setShowTokenModal(false)}>
-                <Text style={styles.modalBtnTextCancel}>Dismiss</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.modalBtnGo} onPress={() => {
-                setShowTokenModal(false);
-                router.push('/pricing');
-              }}>
-                <Text style={styles.modalBtnTextGo}>Go to Store</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
     </View>
   );
 }

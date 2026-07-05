@@ -7,6 +7,7 @@ import { useNotifications } from '../api/queries';
 import { supabase } from '../lib/supabase';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTheme } from '../theme/ThemeContext';
+import Skeleton from '../components/Skeleton';
 
 export default function Notifications() {
   const router = useRouter();
@@ -69,8 +70,32 @@ export default function Notifications() {
 
   if (isLoading) {
     return (
-      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" color={colors.primary} />
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+            <ChevronLeft color={colors.primary} size={24} />
+            <Text style={styles.backText}>Back</Text>
+          </TouchableOpacity>
+        </View>
+        <ScrollView contentContainerStyle={styles.content}>
+          <View style={styles.titleRow}>
+            <Text style={styles.title}>Notifications</Text>
+          </View>
+          <View style={{ marginTop: 24 }}>
+            {[1, 2, 3, 4].map(i => (
+              <View key={i} style={{ flexDirection: 'row', padding: 16, backgroundColor: isDark ? '#1C1C1E' : '#FFFFFF', borderRadius: 12, marginBottom: 12 }}>
+                <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#F2F2F7', alignItems: 'center', justifyContent: 'center' }}>
+                   <Skeleton width={20} height={20} borderRadius={10} />
+                </View>
+                <View style={{ flex: 1, marginLeft: 12 }}>
+                  <Skeleton width={120} height={16} borderRadius={4} style={{ marginBottom: 6 }} />
+                  <Skeleton width="90%" height={14} borderRadius={4} style={{ marginBottom: 4 }} />
+                  <Skeleton width="60%" height={14} borderRadius={4} />
+                </View>
+              </View>
+            ))}
+          </View>
+        </ScrollView>
       </View>
     );
   }

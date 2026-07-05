@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { ActivityIndicator, Image, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAdminDisputes, useAdminResolveDispute } from '../../api/queries';
+import Skeleton from '../../components/Skeleton';
 import { useTheme } from '../../theme/ThemeContext';
 import { useCustomAlert } from '../../components/AlertProvider';
 
@@ -42,7 +43,25 @@ export default function AdminDisputes() {
 
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: Math.max(insets.bottom + 20, 60) }]}>
         {isLoading ? (
-          <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 40 }} />
+          <View style={{ marginTop: 20 }}>
+            {[1, 2, 3].map((i) => (
+              <View key={i} style={styles.card}>
+                <View style={styles.cardHeader}>
+                  <Skeleton width={120} height={16} borderRadius={4} />
+                  <Skeleton width={60} height={20} borderRadius={10} />
+                </View>
+                <View style={{ flexDirection: 'row', marginTop: 12 }}>
+                  <Skeleton width={80} height={150} borderRadius={8} />
+                  <View style={{ marginLeft: 16, flex: 1 }}>
+                    <Skeleton width="100%" height={14} borderRadius={4} style={{ marginBottom: 6 }} />
+                    <Skeleton width="80%" height={14} borderRadius={4} style={{ marginBottom: 16 }} />
+                    <Skeleton width="100%" height={14} borderRadius={4} style={{ marginBottom: 6 }} />
+                    <Skeleton width="60%" height={14} borderRadius={4} />
+                  </View>
+                </View>
+              </View>
+            ))}
+          </View>
         ) : disputes && disputes.length > 0 ? (
           disputes.map(dispute => {
             const tester = dispute.contract?.tester;

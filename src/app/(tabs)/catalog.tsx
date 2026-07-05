@@ -1,16 +1,19 @@
 import { useRouter } from 'expo-router';
 import { Bell, Globe, Hexagon, Search, Sparkles, Star } from 'lucide-react-native';
 import { useState } from 'react';
-import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../api/auth';
 import { useCatalog, useNotifications, useUserProfile } from '../../api/queries';
 import AppIcon from '../../components/AppIcon';
 import EmptyState from '../../components/EmptyState';
+import Skeleton from '../../components/Skeleton';
 import { useTheme } from '../../theme/ThemeContext';
 
 export default function Catalog() {
   const router = useRouter();
   const { colors, isDark } = useTheme();
+  const insets = useSafeAreaInsets();
   const styles = getStyles(colors, isDark);
   const { session } = useAuth();
   const { data: userProfile, isLoading: loadingProfile, refetch: refetchProfile } = useUserProfile(session?.user?.id);
@@ -70,8 +73,27 @@ export default function Catalog() {
 
   if (loadingProfile || loadingCatalog) {
     return (
-      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" color={colors.primary} />
+      <View style={styles.container}>
+        <View style={{ marginTop: Math.max(insets.top, 20), paddingHorizontal: 16, marginBottom: 20 }}>
+           <Skeleton width={150} height={24} borderRadius={4} />
+        </View>
+        <ScrollView contentContainerStyle={styles.content}>
+           <View style={{ marginBottom: 24 }}>
+             <Skeleton width="100%" height={40} borderRadius={8} />
+           </View>
+           {[1, 2, 3].map(i => (
+             <View key={i} style={{ backgroundColor: isDark ? '#1C1C1E' : '#FFFFFF', borderRadius: 16, padding: 16, marginBottom: 16 }}>
+               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                 <Skeleton width={64} height={64} borderRadius={16} />
+                 <View style={{ marginLeft: 16, flex: 1 }}>
+                   <Skeleton width="60%" height={16} borderRadius={4} style={{ marginBottom: 6 }} />
+                   <Skeleton width="40%" height={14} borderRadius={4} style={{ marginBottom: 12 }} />
+                   <Skeleton width="80%" height={14} borderRadius={4} />
+                 </View>
+               </View>
+             </View>
+           ))}
+        </ScrollView>
       </View>
     );
   }

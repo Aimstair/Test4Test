@@ -5,6 +5,7 @@ import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../api/auth';
 import { useSupportTickets } from '../../api/queries';
+import Skeleton from '../../components/Skeleton';
 import { useTheme } from '../../theme/ThemeContext';
 
 export default function AdminTickets() {
@@ -70,7 +71,18 @@ export default function AdminTickets() {
 
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: Math.max(insets.bottom + 20, 60) }]}>
         {isLoading ? (
-          <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 40 }} />
+          <View style={{ marginTop: 20 }}>
+            {[1, 2, 3, 4, 5].map((i) => (
+              <View key={i} style={styles.ticketCard}>
+                <View style={styles.ticketHeader}>
+                  <Skeleton width={150} height={16} borderRadius={4} />
+                  <Skeleton width={60} height={20} borderRadius={10} />
+                </View>
+                <Skeleton width="100%" height={14} borderRadius={4} style={{ marginTop: 12, marginBottom: 8 }} />
+                <Skeleton width="80%" height={14} borderRadius={4} />
+              </View>
+            ))}
+          </View>
         ) : filteredTickets && filteredTickets.length > 0 ? (
           filteredTickets.map(ticket => (
             <TouchableOpacity

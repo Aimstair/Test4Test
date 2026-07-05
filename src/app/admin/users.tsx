@@ -5,6 +5,7 @@ import { ActivityIndicator, Image, ScrollView, StyleSheet, Text, TextInput, Touc
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../api/auth';
 import { useAdminUsers } from '../../api/queries';
+import Skeleton from '../../components/Skeleton';
 import { useTheme } from '../../theme/ThemeContext';
 
 export default function AdminUsers() {
@@ -47,7 +48,18 @@ export default function AdminUsers() {
 
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: Math.max(insets.bottom + 20, 60) }]}>
         {isLoading ? (
-          <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 40 }} />
+          <View style={{ marginTop: 20 }}>
+            {[1, 2, 3, 4, 5].map((i) => (
+              <View key={i} style={styles.userCard}>
+                <Skeleton width={48} height={48} borderRadius={24} />
+                <View style={[styles.userInfo, { marginLeft: 16 }]}>
+                  <Skeleton width={120} height={16} borderRadius={4} style={{ marginBottom: 6 }} />
+                  <Skeleton width={200} height={14} borderRadius={4} style={{ marginBottom: 4 }} />
+                  <Skeleton width={80} height={14} borderRadius={4} />
+                </View>
+              </View>
+            ))}
+          </View>
         ) : filteredUsers && filteredUsers.length > 0 ? (
           filteredUsers.map(user => (
             <TouchableOpacity
