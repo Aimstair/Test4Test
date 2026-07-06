@@ -19,9 +19,7 @@
       },
       "predictiveBackGestureEnabled": false,
       "package": "com.aimteralabs.test4test",
-      "permissions": [
-        "QUERY_ALL_PACKAGES"
-      ]
+      "permissions": []
     },
     "web": {
       "output": "static",
@@ -37,7 +35,7 @@
           "imageWidth": 200
         }
       ],
-      "./plugins/withQueryAllPackages",
+      "./plugins/withAndroidQueries",
       "expo-localization",
       "@react-native-google-signin/google-signin"
     ],
