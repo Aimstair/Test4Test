@@ -1,7 +1,7 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { AlertTriangle, ChevronLeft, Clock, Globe, Send, Smartphone, Star } from 'lucide-react-native';
+import { AlertTriangle, ChevronLeft, Clock, Coins, Flame, Globe, Send, Smartphone, Star } from 'lucide-react-native';
 import { useState } from 'react';
-import { ActivityIndicator, Image, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Image, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../api/auth';
 import { useCatalog, useContracts, useCreateReview, useReports, useReviews, useUserProfile } from '../../api/queries';
@@ -156,20 +156,18 @@ export default function AppDetail() {
               <Text style={styles.appName} numberOfLines={2} ellipsizeMode="tail">{app.name}</Text>
               <Text style={styles.appOwner} numberOfLines={1} ellipsizeMode="tail">by {app.owner?.name || 'Developer'}</Text>
               <View style={styles.tagsRow}>
-                <View style={[styles.tierBadge, app.tier === 'Pro+' && styles.tierBadgeBlack]}>
-                  <Text style={[styles.tierText, app.tier === 'Pro+' && { color: isDark ? '#000' : '#fff' }]}>
-                    {app.tier.toUpperCase()}
-                  </Text>
-                </View>
-                <View style={styles.tagBlue}>
-                  <Text style={styles.tagBlueText}>
-                    {app.boost_ends_at && new Date(app.boost_ends_at) > new Date() ? app.bounty + 10 : app.bounty} TOKENS
-                  </Text>
-                </View>
-                <View style={styles.tagOutline}>
-                  <Star size={10} color="#34C759" fill="#34C759" />
-                  <Text style={styles.tagOutlineText}>{app.owner?.karma?.toFixed(1) || '0.0'} KARMA</Text>
-                </View>
+                {/* <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginRight: 8 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <Coins size={16} color="#eab308" />
+                    <Text style={{ fontSize: 16, fontWeight: '800', color: colors.text }}>
+                      +{app.boost_ends_at && new Date(app.boost_ends_at) > new Date() ? app.bounty + 10 : app.bounty}
+                    </Text>
+                  </View>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <Flame size={16} color="#ef4444" />
+                    <Text style={{ fontSize: 16, fontWeight: '800', color: colors.text }}>+1</Text>
+                  </View>
+                </View> */}
                 {app.boost_ends_at && new Date(app.boost_ends_at) > new Date() && (
                   <View style={{ backgroundColor: 'rgba(255, 149, 0, 0.1)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, marginLeft: 0 }}>
                     <Text style={{ fontSize: 9, fontWeight: '800', color: '#FF9500' }}>🔥 PROMOTED</Text>
@@ -362,7 +360,18 @@ export default function AppDetail() {
         ) : (
           <TouchableOpacity style={styles.commitBtn} onPress={handleStartContract}>
             <Text style={styles.commitBtnTextLeft}>Test this app</Text>
-            <Text style={styles.commitBtnTextRight}>Start 14-day test →</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                <Coins size={16} color="#eab308" />
+                <Text style={{ fontSize: 16, fontWeight: '800', color: '#FFFFFF' }}>
+                  +{app.boost_ends_at && new Date(app.boost_ends_at) > new Date() ? app.bounty + 10 : app.bounty}
+                </Text>
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                <Flame size={16} color="#ef4444" />
+                <Text style={{ fontSize: 16, fontWeight: '800', color: '#FFFFFF' }}>+1</Text>
+              </View>
+            </View>
           </TouchableOpacity>
         )}
       </View>

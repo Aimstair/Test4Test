@@ -5,7 +5,7 @@ import * as Device from 'expo-device';
 import * as ImagePicker from 'expo-image-picker';
 import * as Localization from 'expo-localization';
 import { useRouter } from 'expo-router';
-import { Camera, Check } from 'lucide-react-native';
+import { Camera, Check, Coins, Flame, Gift } from 'lucide-react-native';
 import { useState } from 'react';
 import { Linking, Image as RNImage, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -36,7 +36,7 @@ export default function Onboarding() {
   const insets = useSafeAreaInsets();
 
   const handleNext = async () => {
-    if (step < 5) {
+    if (step < 8) {
       setStep(step + 1);
     } else {
       if (isUploading) return;
@@ -103,6 +103,22 @@ export default function Onboarding() {
 
   const handleGoogleSignIn = async () => {
     setLoadingAuth(true);
+
+    // If already signed in (Simulating Onboarding), skip Google Auth
+    if (session?.user) {
+      const initialName = session.user.user_metadata?.full_name || 'Tester';
+      const os = Device.osName ? `${Device.osName} ${Device.osVersion}` : 'Unknown OS';
+      const deviceName = Device.modelName || 'Unknown Device';
+      const country = Localization.getLocales()[0]?.regionCode || 'Unknown Country';
+
+      setDeviceInfo({ os, device: deviceName, country });
+      setAuthUser(session.user);
+      setEditName(initialName);
+      setStep(2);
+      setLoadingAuth(false);
+      return;
+    }
+
     console.log('Using Web Client ID:', process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID);
     try {
       await GoogleSignin.hasPlayServices();
@@ -171,7 +187,7 @@ export default function Onboarding() {
   const renderProgressBar = () => {
     return (
       <View style={styles.progressRow}>
-        {[1, 2, 3, 4, 5].map((s) => (
+        {[1, 2, 3, 4, 5, 6, 7, 8].map((s) => (
           <View
             key={s}
             style={[styles.progressSegment, step >= s && styles.progressSegmentActive]}
@@ -291,22 +307,6 @@ export default function Onboarding() {
         </Text>
       </View>
 
-      {/* Referral Code */}
-      <View style={[styles.card, { marginTop: 12 }]}>
-        <Text style={styles.cardTitle}>Invite Code (Optional)</Text>
-        <Text style={styles.cardDesc}>
-          Were you invited by a friend? Enter their code now to get a 50 Token bonus on your first test.
-        </Text>
-        <TextInput
-          style={[styles.profileName, { borderBottomWidth: 1, borderBottomColor: colors.border, paddingVertical: 8, marginTop: 12, fontSize: 16 }]}
-          value={referralCode}
-          onChangeText={setReferralCode}
-          placeholder="e.g. A1B2C3D4"
-          placeholderTextColor={colors.textSecondary}
-          autoCapitalize="characters"
-        />
-      </View>
-
       <View style={{ flex: 1 }} />
 
       <View style={styles.footer}>
@@ -318,6 +318,49 @@ export default function Onboarding() {
   );
 
   const renderStep3 = () => (
+    <View style={styles.stepContainer}>
+      <View style={styles.headerArea}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+          <View style={{ backgroundColor: 'rgba(168, 85, 247, 0.15)', padding: 12, borderRadius: 16, marginRight: 16 }}>
+            <Gift size={32} color="#a855f7" />
+          </View>
+          <Text style={[styles.title, { marginBottom: 0 }]}>Invite Code</Text>
+        </View>
+        <Text style={styles.subtitle}>
+          Did a friend invite you to Test4Test? Enter their referral code now.
+        </Text>
+      </View>
+
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Claim your bonus</Text>
+        <Text style={styles.cardDesc}>
+          Both you and your friend will receive <Text style={{ fontWeight: '800', color: colors.text }}>+50 Tokens</Text> after you complete your first 14-day app test.
+        </Text>
+        <View style={{ marginTop: 24 }}>
+          <Text style={styles.statLabel}>REFERRAL CODE (OPTIONAL)</Text>
+          <TextInput
+            style={[styles.profileName, { borderBottomWidth: 2, borderBottomColor: referralCode.length > 0 ? colors.primary : colors.border, paddingVertical: 12, marginTop: 4, fontSize: 20, letterSpacing: 2 }]}
+            value={referralCode}
+            onChangeText={setReferralCode}
+            placeholder="e.g. A1B2C3D4"
+            placeholderTextColor={colors.textSecondary}
+            autoCapitalize="characters"
+            maxLength={10}
+          />
+        </View>
+      </View>
+
+      <View style={{ flex: 1 }} />
+
+      <View style={styles.footer}>
+        <TouchableOpacity style={styles.btnPrimary} onPress={handleNext}>
+          <Text style={styles.btnTextWhite}>{referralCode.length > 0 ? 'CLAIM BONUS' : 'SKIP FOR NOW'}</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
+  const renderStep4 = () => (
     <View style={styles.stepContainer}>
       <View style={styles.headerArea}>
         <Text style={styles.title}>Join the Master Group</Text>
@@ -362,10 +405,10 @@ export default function Onboarding() {
 
   const handleIntentSelection = async (intent: 'tester' | 'developer') => {
     await AsyncStorage.setItem('user_primary_intent', intent);
-    setStep(5);
+    setStep(6);
   };
 
-  const renderStep4 = () => (
+  const renderStep5 = () => (
     <View style={styles.stepContainer}>
       <View style={styles.headerArea}>
         <Text style={styles.title}>What's your primary goal?</Text>
@@ -402,7 +445,125 @@ export default function Onboarding() {
     </View>
   );
 
-  const renderStep5 = () => (
+  const renderStep6 = () => (
+    <View style={styles.stepContainer}>
+      <View style={styles.headerArea}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+          <View style={{ backgroundColor: 'rgba(234, 179, 8, 0.15)', padding: 12, borderRadius: 16, marginRight: 16 }}>
+            <Coins size={32} color="#eab308" />
+          </View>
+          <Text style={[styles.title, { marginBottom: 0 }]}>Tokens</Text>
+        </View>
+        <Text style={styles.subtitle}>
+          Tokens are the in-app currency that fuel the Test4Test ecosystem.
+        </Text>
+      </View>
+
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>How it works</Text>
+        <View style={[styles.checklist, { marginBottom: 0, marginTop: 12 }]}>
+          <View style={styles.checkItem}>
+            <View style={[styles.checkIconBox, { backgroundColor: 'rgba(234, 179, 8, 0.15)', borderColor: 'transparent' }]}>
+              <Coins size={16} color="#eab308" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.checkTitle}>Earn Tokens</Text>
+              <Text style={styles.checkTextSmall}>Get paid for testing apps and leaving honest reviews.</Text>
+            </View>
+          </View>
+
+          <View style={styles.checkItem}>
+            <View style={[styles.checkIconBox, { backgroundColor: 'rgba(59, 130, 246, 0.15)', borderColor: 'transparent' }]}>
+              <Text style={{ fontSize: 12 }}>🚀</Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.checkTitle}>Publish Apps</Text>
+              <Text style={styles.checkTextSmall}>Developers spend Tokens to list their apps for testing.</Text>
+            </View>
+          </View>
+
+          <View style={styles.checkItem}>
+            <View style={[styles.checkIconBox, { backgroundColor: 'rgba(34, 197, 94, 0.15)', borderColor: 'transparent' }]}>
+              <Text style={{ fontSize: 12 }}>🛒</Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.checkTitle}>Buy More</Text>
+              <Text style={styles.checkTextSmall}>Short on Tokens? Purchase them directly from the shop.</Text>
+            </View>
+          </View>
+        </View>
+      </View>
+
+      <View style={{ flex: 1 }} />
+
+      <View style={styles.footer}>
+        <TouchableOpacity style={styles.btnPrimary} onPress={handleNext}>
+          <Text style={styles.btnTextWhite}>CONTINUE {'>'}</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
+  const renderStep7 = () => (
+    <View style={styles.stepContainer}>
+      <View style={styles.headerArea}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+          <View style={{ backgroundColor: 'rgba(239, 68, 68, 0.15)', padding: 12, borderRadius: 16, marginRight: 16 }}>
+            <Flame size={32} color="#ef4444" />
+          </View>
+          <Text style={[styles.title, { marginBottom: 0 }]}>Karma</Text>
+        </View>
+        <Text style={styles.subtitle}>
+          Karma is your reputation score. High Karma gives you better visibility and ranking.
+        </Text>
+      </View>
+
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Karma Rules</Text>
+        <View style={[styles.checklist, { marginBottom: 0, marginTop: 12 }]}>
+          <View style={styles.checkItem}>
+            <View style={[styles.checkIconBox, { backgroundColor: 'rgba(34, 197, 94, 0.15)', borderColor: 'transparent' }]}>
+              <Text style={{ fontSize: 12, fontWeight: '800', color: '#22c55e' }}>+1</Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.checkTitle}>Daily Check-in</Text>
+              <Text style={styles.checkTextSmall}>Testers earn +1 Karma for each daily proof approved.</Text>
+            </View>
+          </View>
+
+          <View style={styles.checkItem}>
+            <View style={[styles.checkIconBox, { backgroundColor: 'rgba(239, 68, 68, 0.15)', borderColor: 'transparent' }]}>
+              <Text style={{ fontSize: 12, fontWeight: '800', color: '#ef4444' }}>-2</Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.checkTitle}>Missed Day</Text>
+              <Text style={styles.checkTextSmall}>Testers lose -2 Karma per app they miss checking in on.</Text>
+            </View>
+          </View>
+
+          <View style={styles.checkItem}>
+            <View style={[styles.checkIconBox, { backgroundColor: 'rgba(34, 197, 94, 0.15)', borderColor: 'transparent' }]}>
+              <Text style={{ fontSize: 12, fontWeight: '800', color: '#22c55e' }}>+.5</Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.checkTitle}>Approve Proof</Text>
+              <Text style={styles.checkTextSmall}>Developers earn +0.5 Karma when approving tester proofs.</Text>
+            </View>
+          </View>
+        </View>
+      </View>
+
+      <View style={{ flex: 1 }} />
+
+      <View style={styles.footer}>
+        <TouchableOpacity style={styles.btnPrimary} onPress={handleNext}>
+          <Text style={styles.btnTextWhite}>CONTINUE {'>'}</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
+  const renderStep8 = () => (
     <View style={styles.stepContainer}>
       <View style={styles.headerArea}>
         <Text style={styles.title}>The Daily Proof</Text>
@@ -449,6 +610,9 @@ export default function Onboarding() {
         {step === 3 && renderStep3()}
         {step === 4 && renderStep4()}
         {step === 5 && renderStep5()}
+        {step === 6 && renderStep6()}
+        {step === 7 && renderStep7()}
+        {step === 8 && renderStep8()}
       </ScrollView>
     </View>
   );
@@ -483,7 +647,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     borderColor: colors.primary,
   },
   stepContainer: {
-    flex: 1,
+    flexGrow: 1,
     justifyContent: 'space-between',
   },
   headerArea: {

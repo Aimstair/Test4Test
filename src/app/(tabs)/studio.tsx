@@ -1,14 +1,15 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
-import { BookOpen, Hexagon, Info, Sparkles, X, Settings2, Rocket } from 'lucide-react-native';
-import React, { useState, useEffect } from 'react';
+import { BookOpen, Rocket, Sparkles, X, Coins } from 'lucide-react-native';
+import { useEffect, useState } from 'react';
 import { Modal, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useAuth } from '../../api/auth';
 import { useCatalog, useUserProfile } from '../../api/queries';
-import AppIcon from '../../components/AppIcon';
-import Skeleton from '../../components/Skeleton';
-import EmptyState from '../../components/EmptyState';
 import { useCustomAlert } from '../../components/AlertProvider';
+import AppHeader from '../../components/AppHeader';
+import AppIcon from '../../components/AppIcon';
+import EmptyState from '../../components/EmptyState';
+import Skeleton from '../../components/Skeleton';
 import { useTheme } from '../../theme/ThemeContext';
 
 export default function Studio() {
@@ -25,6 +26,7 @@ export default function Studio() {
 
   const [refreshing, setRefreshing] = useState(false);
   const [showWelcome, setShowWelcome] = useState(false);
+  const [showTokenModal, setShowTokenModal] = useState(false);
 
   useEffect(() => {
     AsyncStorage.getItem('studio_first_visit').then(visited => {
@@ -82,192 +84,235 @@ export default function Studio() {
   if (loadingProfile || loadingCatalog) {
     return (
       <View style={styles.container}>
-        <View style={styles.topNav}>
-        </View>
+        <AppHeader />
         <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-           <Skeleton width={120} height={32} borderRadius={4} style={{ marginBottom: 24 }} />
-           <View style={{ marginBottom: 24 }}>
-             <Skeleton width="100%" height={120} borderRadius={12} />
-           </View>
-           {[1, 2, 3].map(i => (
-             <View key={i} style={styles.appCard}>
-               <View style={styles.appHeader}>
-                 <Skeleton width={64} height={64} borderRadius={16} />
-                 <View style={{ marginLeft: 16, flex: 1 }}>
-                   <Skeleton width="60%" height={16} borderRadius={4} style={{ marginBottom: 6 }} />
-                   <Skeleton width="40%" height={14} borderRadius={4} style={{ marginBottom: 12 }} />
-                   <Skeleton width="80%" height={14} borderRadius={4} />
-                 </View>
-               </View>
-             </View>
-           ))}
+          <Skeleton width={120} height={32} borderRadius={4} style={{ marginBottom: 24 }} />
+          <View style={{ marginBottom: 24 }}>
+            <Skeleton width="100%" height={120} borderRadius={12} />
+          </View>
+          {[1, 2, 3].map(i => (
+            <View key={i} style={styles.appCard}>
+              <View style={styles.appHeader}>
+                <Skeleton width={64} height={64} borderRadius={16} />
+                <View style={{ marginLeft: 16, flex: 1 }}>
+                  <Skeleton width="60%" height={16} borderRadius={4} style={{ marginBottom: 6 }} />
+                  <Skeleton width="40%" height={14} borderRadius={4} style={{ marginBottom: 12 }} />
+                  <Skeleton width="80%" height={14} borderRadius={4} />
+                </View>
+              </View>
+            </View>
+          ))}
         </ScrollView>
       </View>
     );
   }
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.content}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-      }
-    >
-      <View style={styles.topNav}>
-        <View style={styles.topNavRight}>
-          <View style={styles.pill}>
-            <Hexagon size={14} color={colors.primary} />
-            <Text style={styles.pillText}>{user.tokens}</Text>
-          </View>
-          <View style={styles.pill}>
-            <Sparkles size={14} color={colors.primary} />
-            <Text style={styles.pillText}>{user.karma.toFixed(1)}</Text>
-          </View>
-        </View>
-      </View>
-
-      <Text style={styles.headerTitle}>Build</Text>
-
-      <View style={styles.splitRow}>
-        <View style={styles.splitCard}>
-          <Text style={styles.splitValue}>{activeAppsCount}{activeAppLimit !== Infinity ? `/${activeAppLimit}` : ''}</Text>
-          <Text style={styles.splitLabel}>LIVE APPS</Text>
-        </View>
-        <TouchableOpacity
-          style={[styles.newAppBtn, activeAppsCount >= activeAppLimit && { opacity: 0.5 }]}
-          onPress={() => activeAppsCount < activeAppLimit && router.push('/studio/new')}
-          activeOpacity={activeAppsCount >= activeAppLimit ? 1 : 0.7}
-        >
-          <Text style={styles.newAppPlus}>+</Text>
-          <Text style={styles.newAppLabel}>NEW APP</Text>
-        </TouchableOpacity>
-      </View>
-
-      <Text style={styles.sectionTitle}>YOUR APPS</Text>
-
-      {myApps.length === 0 && (
-        <EmptyState
-          icon={<BookOpen size={48} color="#A0A0AB" strokeWidth={1.5} />}
-          title="Save your app here first"
-          description="Your App Library stores your app details so you don't have to re-enter them every time you list."
-          steps={[
-            { title: "Add your app here", description: "Enter your Play Store URL and app details once" },
-            { title: "Publish to Catalog", description: "Go to the Build tab and make your app live to get testers" },
-            { title: "Review Proofs", description: "Approve daily proofs to maintain your app's quality" }
-          ]}
-        />
-      )}
-
-      {myApps.map((app) => {
-        const activeTesters = new Set(app.contracts?.filter((c: any) => c.status === 'active').map((c: any) => c.tester_id)).size || 0;
-        const failedTesters = app.contracts?.filter((c: any) => c.status === 'failed').length || 0;
-        const churnRate = (app.contracts?.length || 0) > 0 ? Math.round((failedTesters / app.contracts.length) * 100) : 0;
-
-        const isUnlimited = app.app_type !== 'Production' && (userProfile?.subscription_tier === 'Pro' || userProfile?.subscription_tier === 'Pro+');
-        
-        const isExpired = checkIsExpired(app);
-        let effectiveExpiresAt = app.expires_at ? new Date(app.expires_at) : null;
-        if (!effectiveExpiresAt && app.created_at) {
-          let days = 14;
-          if (app.tier === 'Pro') days = 20;
-          if (app.tier === 'Pro+') days = 30;
-          effectiveExpiresAt = new Date(app.created_at);
-          effectiveExpiresAt.setDate(effectiveExpiresAt.getDate() + days);
+    <View style={styles.container}>
+      <AppHeader />
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.content}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
-        const daysRemaining = effectiveExpiresAt ? Math.max(0, Math.ceil((effectiveExpiresAt.getTime() - new Date().getTime()) / (1000 * 3600 * 24))) : 0;
+      >
+        {/* <Text style={styles.headerTitle}>Build</Text> */}
 
-        return (
+        <View style={styles.splitRow}>
+          <View style={styles.splitCard}>
+            <Text style={styles.splitValue}>{activeAppsCount}{activeAppLimit !== Infinity ? `/${activeAppLimit}` : ''}</Text>
+            <Text style={styles.splitLabel}>LIVE APPS</Text>
+          </View>
           <TouchableOpacity
-            key={app.id}
-            style={styles.appCard}
-            onPress={() => router.push(`/studio/${app.id}`)}
+            style={[styles.newAppBtn, activeAppsCount >= activeAppLimit && { opacity: 0.5 }]}
+            onPress={() => {
+              if (activeAppsCount < activeAppLimit) {
+                if (userProfile?.subscription_tier === 'Basic' && (userProfile?.tokens || 0) < 50) {
+                  setShowTokenModal(true);
+                } else {
+                  router.push('/studio/new');
+                }
+              }
+            }}
+            activeOpacity={activeAppsCount >= activeAppLimit ? 1 : 0.7}
           >
-            <View style={styles.appHeader}>
-              <View style={styles.appIconPlaceholder}>
-                <AppIcon url={app.icon_url} size={40} />
-              </View>
-              <View style={styles.appTitleCol}>
-                <Text style={styles.appName}>{app.name}</Text>
-                <Text style={styles.appSub}>{app.tier} • {app.tester_limit} Testers{isExpired ? ' • Expired' : isUnlimited ? ' • Unlimited' : ` • Expires in ${daysRemaining}d`}</Text>
-              </View>
-              <View style={[
-                styles.liveBadge,
-                isExpired ? { backgroundColor: 'rgba(255, 59, 48, 0.1)' } :
-                  app.active === false ? { backgroundColor: colors.border } : {}
-              ]}>
-                {!isExpired && app.active !== false && <View style={styles.liveDot} />}
-                <Text style={[
-                  styles.liveText,
-                  isExpired ? { color: colors.danger } :
-                    app.active === false ? { color: colors.textSecondary } : {}
+            <Text style={styles.newAppPlus}>+</Text>
+            <Text style={styles.newAppLabel}>NEW APP</Text>
+          </TouchableOpacity>
+        </View>
+
+        <Text style={styles.sectionTitle}>YOUR APPS</Text>
+
+        {myApps.length === 0 && (
+          <EmptyState
+            icon={<BookOpen size={48} color="#A0A0AB" strokeWidth={1.5} />}
+            title="Ready to launch?"
+            description="You need 100 Tokens to get 20 guaranteed testers. Test apps to earn Tokens for FREE, or upgrade to Pro."
+            steps={[
+              { title: "1. Earn Tokens for Free", description: "Go to the Catalog and test 3 apps to earn enough Tokens." },
+              { title: "2. Add your app", description: "Enter your Play Store URL and app details." },
+              { title: "3. Publish to Catalog", description: "Make your app live and get your testers." }
+            ]}
+            buttonText="Earn Tokens Now"
+            onPressButton={() => router.push('/(tabs)/catalog')}
+          />
+        )}
+
+        {myApps.map((app) => {
+          const activeTesters = new Set(app.contracts?.filter((c: any) => c.status === 'active').map((c: any) => c.tester_id)).size || 0;
+          const failedTesters = app.contracts?.filter((c: any) => c.status === 'failed').length || 0;
+          const churnRate = (app.contracts?.length || 0) > 0 ? Math.round((failedTesters / app.contracts.length) * 100) : 0;
+
+          const isUnlimited = app.app_type !== 'Production' && (userProfile?.subscription_tier === 'Pro' || userProfile?.subscription_tier === 'Pro+');
+
+          const isExpired = checkIsExpired(app);
+          let effectiveExpiresAt = app.expires_at ? new Date(app.expires_at) : null;
+          if (!effectiveExpiresAt && app.created_at) {
+            let days = 14;
+            if (app.tier === 'Pro') days = 20;
+            if (app.tier === 'Pro+') days = 30;
+            effectiveExpiresAt = new Date(app.created_at);
+            effectiveExpiresAt.setDate(effectiveExpiresAt.getDate() + days);
+          }
+          const daysRemaining = effectiveExpiresAt ? Math.max(0, Math.ceil((effectiveExpiresAt.getTime() - new Date().getTime()) / (1000 * 3600 * 24))) : 0;
+
+          return (
+            <TouchableOpacity
+              key={app.id}
+              style={styles.appCard}
+              onPress={() => router.push(`/studio/${app.id}`)}
+            >
+              <View style={styles.appHeader}>
+                <View style={styles.appIconPlaceholder}>
+                  <AppIcon url={app.icon_url} size={40} />
+                </View>
+                <View style={styles.appTitleCol}>
+                  <Text style={styles.appName}>{app.name}</Text>
+                  <Text style={styles.appSub}>{app.tier} • {app.tester_limit} Testers{isExpired ? ' • Expired' : isUnlimited ? ' • Unlimited' : ` • Expires in ${daysRemaining}d`}</Text>
+                </View>
+                <View style={[
+                  styles.liveBadge,
+                  isExpired ? { backgroundColor: 'rgba(255, 59, 48, 0.1)' } :
+                    app.active === false ? { backgroundColor: colors.border } : {}
                 ]}>
-                  {isExpired ? 'EXPIRED' : app.active !== false ? 'LIVE' : 'OFFLINE'}
+                  {!isExpired && app.active !== false && <View style={styles.liveDot} />}
+                  <Text style={[
+                    styles.liveText,
+                    isExpired ? { color: colors.danger } :
+                      app.active === false ? { color: colors.textSecondary } : {}
+                  ]}>
+                    {isExpired ? 'EXPIRED' : app.active !== false ? 'LIVE' : 'OFFLINE'}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.statsRow}>
+                <View style={styles.statCol}>
+                  <Text style={styles.statValue}>{activeTesters}<Text style={styles.statTotal}>/{app.tester_limit || 10}</Text></Text>
+                  <Text style={styles.statLabel}>LOCKED</Text>
+                </View>
+                <View style={styles.statDivider} />
+                <View style={styles.statCol}>
+                  <Text style={styles.statValue}>{activeTesters}</Text>
+                  <Text style={styles.statLabel}>ACTIVE TODAY</Text>
+                </View>
+                <View style={styles.statDivider} />
+                <View style={styles.statCol}>
+                  <Text style={styles.statValue}>{churnRate}%</Text>
+                  <Text style={styles.statLabel}>CHURN</Text>
+                </View>
+              </View>
+
+              <TouchableOpacity style={styles.exportBtn} onPress={() => showAlert('Coming Soon', 'This feature is currently under development and will be available in a future update.')}>
+                <Text style={styles.exportBtnText}>EXPORT 14-DAY REPORT</Text>
+              </TouchableOpacity>
+            </TouchableOpacity>
+          )
+        })}
+
+        {/* First-time Studio Welcome Modal */}
+        <Modal visible={showWelcome} transparent animationType="fade">
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalCard, { alignItems: 'stretch' }]}>
+              <TouchableOpacity style={styles.modalClose} onPress={dismissWelcome}>
+                <X size={20} color={colors.textSecondary} />
+              </TouchableOpacity>
+
+              <View style={{ alignItems: 'center', marginBottom: 16 }}>
+                <View style={[styles.modalIconCircle, { backgroundColor: isDark ? '#1C2B36' : '#E1F0FF' }]}>
+                  <Rocket size={32} color={colors.primary} />
+                </View>
+                <Text style={styles.modalTitle}>Welcome to Studio</Text>
+              </View>
+
+              <Text style={styles.modalBody}>
+                This is your developer dashboard. Here you can list your apps, track testers, review daily proofs, and manage settings.
+              </Text>
+
+              <View style={styles.proTipCard}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+                  <Sparkles size={16} color={colors.primary} style={{ marginRight: 6 }} />
+                  <Text style={styles.proTipTitle}>Pro Tip: Auto-Approve</Text>
+                </View>
+                <Text style={styles.proTipBody}>
+                  Manually reviewing 20 testers every day can be tedious. Pro+ members can enable Auto-Approve to handle it automatically!
                 </Text>
               </View>
+
+              <TouchableOpacity style={styles.modalBtnPrimary} onPress={dismissWelcome}>
+                <Text style={styles.modalBtnPrimaryText}>Let's Build</Text>
+              </TouchableOpacity>
             </View>
-
-            <View style={styles.statsRow}>
-              <View style={styles.statCol}>
-                <Text style={styles.statValue}>{activeTesters}<Text style={styles.statTotal}>/{app.tester_limit || 10}</Text></Text>
-                <Text style={styles.statLabel}>LOCKED</Text>
-              </View>
-              <View style={styles.statDivider} />
-              <View style={styles.statCol}>
-                <Text style={styles.statValue}>{activeTesters}</Text>
-                <Text style={styles.statLabel}>ACTIVE TODAY</Text>
-              </View>
-              <View style={styles.statDivider} />
-              <View style={styles.statCol}>
-                <Text style={styles.statValue}>{churnRate}%</Text>
-                <Text style={styles.statLabel}>CHURN</Text>
-              </View>
-            </View>
-
-            <TouchableOpacity style={styles.exportBtn} onPress={() => showAlert('Coming Soon', 'This feature is currently under development and will be available in a future update.')}>
-              <Text style={styles.exportBtnText}>EXPORT 14-DAY REPORT</Text>
-            </TouchableOpacity>
-          </TouchableOpacity>
-        )
-      })}
-
-      {/* First-time Studio Welcome Modal */}
-      <Modal visible={showWelcome} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalCard, { alignItems: 'stretch' }]}>
-            <TouchableOpacity style={styles.modalClose} onPress={dismissWelcome}>
-              <X size={20} color={colors.textSecondary} />
-            </TouchableOpacity>
-
-            <View style={{ alignItems: 'center', marginBottom: 16 }}>
-              <View style={[styles.modalIconCircle, { backgroundColor: isDark ? '#1C2B36' : '#E1F0FF' }]}>
-                <Rocket size={32} color={colors.primary} />
-              </View>
-              <Text style={styles.modalTitle}>Welcome to Studio</Text>
-            </View>
-
-            <Text style={styles.modalBody}>
-              This is your developer dashboard. Here you can list your apps, track testers, review daily proofs, and manage settings.
-            </Text>
-            
-            <View style={styles.proTipCard}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
-                <Sparkles size={16} color={colors.primary} style={{ marginRight: 6 }} />
-                <Text style={styles.proTipTitle}>Pro Tip: Auto-Approve</Text>
-              </View>
-              <Text style={styles.proTipBody}>
-                Manually reviewing 20 testers every day can be tedious. Pro+ members can enable Auto-Approve to handle it automatically!
-              </Text>
-            </View>
-
-            <TouchableOpacity style={styles.modalBtnPrimary} onPress={dismissWelcome}>
-              <Text style={styles.modalBtnPrimaryText}>Let's Build</Text>
-            </TouchableOpacity>
           </View>
-        </View>
-      </Modal>
+        </Modal>
 
-    </ScrollView>
+        {/* Insufficient Tokens Modal */}
+        <Modal visible={showTokenModal} transparent animationType="fade">
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalCard, { width: '90%', maxWidth: 400, padding: 24, alignItems: 'stretch' }]}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 20 }}>
+                <View style={{ backgroundColor: 'rgba(234, 179, 8, 0.15)', padding: 12, borderRadius: 24, marginRight: 12 }}>
+                  <Coins size={28} color="#eab308" />
+                </View>
+                <Text style={[styles.modalTitle, { marginBottom: 0, fontSize: 22 }]}>Insufficient Tokens</Text>
+              </View>
+              
+              <Text style={[styles.modalBody, { fontSize: 16, textAlign: 'center', marginBottom: 8 }]}>
+                You need <Text style={{fontWeight: '800', color: colors.text}}>50 Tokens</Text> to publish this app. You currently have <Text style={{fontWeight: '800', color: colors.text}}>{userProfile?.tokens || 0}</Text>.
+              </Text>
+              <Text style={[styles.modalBody, { fontSize: 16, textAlign: 'center', marginBottom: 24 }]}>
+                Test apps in the Catalog to earn Tokens for FREE, or buy them from the store.
+              </Text>
+              
+              <View style={{ flexDirection: 'column', gap: 12, marginTop: 8, width: '100%' }}>
+                <TouchableOpacity 
+                  style={[styles.modalBtnPrimary, { paddingVertical: 16, borderRadius: 12 }]} 
+                  onPress={() => { setShowTokenModal(false); router.push('/catalog'); }}
+                >
+                  <Text style={[styles.modalBtnPrimaryText, { fontSize: 16 }]}>Test Apps (Earn Free Tokens)</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity 
+                  style={[styles.modalBtnPrimary, { paddingVertical: 16, borderRadius: 12, backgroundColor: isDark ? '#333' : '#E5E5EA' }]} 
+                  onPress={() => { setShowTokenModal(false); router.push('/pricing'); }}
+                >
+                  <Text style={[styles.modalBtnPrimaryText, { color: colors.text, fontSize: 16 }]}>Buy Tokens from Store</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity 
+                  style={{ paddingVertical: 16, borderRadius: 12, backgroundColor: 'transparent', alignItems: 'center' }} 
+                  onPress={() => setShowTokenModal(false)}
+                >
+                  <Text style={{ fontWeight: '700', fontSize: 16, color: colors.textSecondary }}>Cancel</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+
+      </ScrollView>
+    </View>
   );
 }
 
@@ -278,7 +323,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   content: {
     padding: 12,
-    paddingTop: 32,
+    paddingTop: 12,
     paddingBottom: 20,
   },
   topNav: {

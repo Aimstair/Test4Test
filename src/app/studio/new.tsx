@@ -2,7 +2,7 @@ import { decode } from 'base64-arraybuffer';
 import * as Clipboard from 'expo-clipboard';
 import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Check, ChevronLeft, Image as ImageIcon } from 'lucide-react-native';
+import { Check, ChevronLeft, Image as ImageIcon, Coins } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Animated, Modal, Image as RNImage, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useAuth } from '../../api/auth';
@@ -51,6 +51,7 @@ export default function NewApp() {
   const [iconUrl, setIconUrl] = useState('');
   const [iconBase64, setIconBase64] = useState('');
   const [isUploading, setIsUploading] = useState(false);
+  const [showTokenModal, setShowTokenModal] = useState(false);
 
   // Dynamic cost calculation
   let displayTesterLimit = appType === 'Production' ? 24 : 12;
@@ -179,10 +180,7 @@ export default function NewApp() {
 
     if ((userProfile?.tokens || 0) < tokenCost) {
       setIsUploading(false);
-      showAlert('Insufficient Tokens', `You need ${tokenCost} tokens to publish this app. You currently have ${userProfile?.tokens || 0}.`, [
-        { text: 'Dismiss', style: 'cancel' },
-        { text: 'Go to Store', onPress: () => router.push('/pricing') }
-      ]);
+      setShowTokenModal(true);
       return;
     }
 
@@ -450,6 +448,49 @@ export default function NewApp() {
           )}
         </TouchableOpacity>
       </ScrollView>
+
+      <Modal visible={showTokenModal} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { width: '90%', maxWidth: 400 }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 20 }}>
+              <View style={{ backgroundColor: 'rgba(234, 179, 8, 0.15)', padding: 12, borderRadius: 24, marginRight: 12 }}>
+                <Coins size={28} color="#eab308" />
+              </View>
+              <Text style={[styles.modalTitle, { marginBottom: 0, fontSize: 22 }]}>Insufficient Tokens</Text>
+            </View>
+            
+            <Text style={[styles.modalText, { fontSize: 16, textAlign: 'center' }]}>
+              You need <Text style={{fontWeight: '800', color: colors.text}}>{tokenCost} Tokens</Text> to publish this app. You currently have <Text style={{fontWeight: '800', color: colors.text}}>{userProfile?.tokens || 0}</Text>.
+            </Text>
+            <Text style={[styles.modalText, { fontSize: 16, textAlign: 'center' }]}>
+              Test apps in the Catalog to earn Tokens for FREE, or buy them from the store.
+            </Text>
+            
+            <View style={{ flexDirection: 'column', gap: 12, marginTop: 8 }}>
+              <TouchableOpacity 
+                style={[styles.modalBtnGo, { flex: 0, paddingVertical: 16, borderRadius: 12 }]} 
+                onPress={() => { setShowTokenModal(false); router.push('/catalog'); }}
+              >
+                <Text style={[styles.modalBtnTextGo, { fontSize: 16 }]}>Test Apps (Earn Free Tokens)</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={[styles.modalBtnGo, { flex: 0, paddingVertical: 16, borderRadius: 12, backgroundColor: isDark ? '#333' : '#E5E5EA' }]} 
+                onPress={() => { setShowTokenModal(false); router.push('/pricing'); }}
+              >
+                <Text style={[styles.modalBtnTextGo, { color: colors.text, fontSize: 16 }]}>Buy Tokens from Store</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={[styles.modalBtnCancel, { flex: 0, paddingVertical: 16, borderRadius: 12, backgroundColor: 'transparent' }]} 
+                onPress={() => setShowTokenModal(false)}
+              >
+                <Text style={[styles.modalBtnTextCancel, { fontSize: 16, color: colors.textSecondary }]}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {showToast && (
         <Animated.View style={[styles.toast, { opacity: toastOpacity }]}>

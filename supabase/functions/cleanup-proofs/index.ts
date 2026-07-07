@@ -20,9 +20,9 @@ Deno.serve(async (_req) => {
       .from('contract_days')
       .select('id, proof_image_url')
       .in('status', ['done', 'rejected'])
-      .lt('updated_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+      .lt('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
       .not('proof_image_url', 'is', null)
-      .eq('storage_cleaned', false)
+      .or('storage_cleaned.eq.false,storage_cleaned.is.null')
       .limit(100); // Process in batches to avoid timeout
 
     if (error) throw error;
@@ -38,7 +38,7 @@ Deno.serve(async (_req) => {
         // Extract the storage path from the full public URL
         // URL format: https://<project>.supabase.co/storage/v1/object/public/public-assets/proofs/filename.jpg
         const url = row.proof_image_url as string;
-        const bucketPath = url.split(`/public/${STORAGE_BUCKET}/`)[1];
+        const bucketPath = url.split(`${STORAGE_BUCKET}/`)[1];
 
         if (!bucketPath) {
           // URL doesn't match expected format — mark cleaned to skip in future

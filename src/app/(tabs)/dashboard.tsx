@@ -1,19 +1,20 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { decode } from 'base64-arraybuffer';
 import * as ImagePicker from 'expo-image-picker';
 import * as IntentLauncher from 'expo-intent-launcher';
-import { useRouter, useFocusEffect } from 'expo-router';
-import { Bell, Camera, Hexagon, Rocket, Sparkles } from 'lucide-react-native';
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { Camera, Rocket } from 'lucide-react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../api/auth';
-import { useContracts, useUploadProof, useUserProfile, useNotifications, useDisputeProof } from '../../api/queries';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useContracts, useDisputeProof, useNotifications, useUploadProof, useUserProfile } from '../../api/queries';
 import { useCustomAlert } from '../../components/AlertProvider';
+import AppHeader from '../../components/AppHeader';
 import AppIcon from '../../components/AppIcon';
 import EmptyState from '../../components/EmptyState';
-import Skeleton from '../../components/Skeleton';
 import OnboardingTooltip, { LayoutRect } from '../../components/OnboardingTooltip';
+import Skeleton from '../../components/Skeleton';
 import UtcCountdown from '../../components/UtcCountdown';
 import { supabase } from '../../lib/supabase';
 import { useTheme } from '../../theme/ThemeContext';
@@ -87,7 +88,7 @@ export default function Dashboard() {
   useEffect(() => {
     if (session?.user?.id) {
       setupDailyReminders(session.user.id);
-      
+
       // Check if we need to show the onboarding tour
       AsyncStorage.getItem('onboarding_tooltips_completed').then(completed => {
         if (!completed) {
@@ -173,15 +174,15 @@ export default function Dashboard() {
     if (!result.canceled && result.assets[0].base64) {
       const exif = result.assets[0].exif as any;
       if (exif && (exif.DateTimeOriginal || exif.DateTime)) {
-         const dateStr = exif.DateTimeOriginal || exif.DateTime;
-         const imgDate = dateStr.substring(0, 10).replace(/:/g, '-');
-         const todayDate = new Date().toISOString().substring(0, 10);
-         
-         // Only enforce date validation if the string format looks correct (YYYY:MM:DD)
-         if (dateStr.includes(':') && imgDate !== todayDate) {
-            showAlert('Invalid Proof', 'This screenshot was not taken today. Please take a fresh screenshot.');
-            return;
-         }
+        const dateStr = exif.DateTimeOriginal || exif.DateTime;
+        const imgDate = dateStr.substring(0, 10).replace(/:/g, '-');
+        const todayDate = new Date().toISOString().substring(0, 10);
+
+        // Only enforce date validation if the string format looks correct (YYYY:MM:DD)
+        if (dateStr.includes(':') && imgDate !== todayDate) {
+          showAlert('Invalid Proof', 'This screenshot was not taken today. Please take a fresh screenshot.');
+          return;
+        }
       }
 
       const ext = result.assets[0].uri.split('.').pop()?.toLowerCase() || 'jpeg';
@@ -237,292 +238,274 @@ export default function Dashboard() {
   if (loadingProfile || loadingContracts) {
     return (
       <View style={styles.container}>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: Math.max(insets.top, 20), paddingHorizontal: 16, marginBottom: 20 }}>
-           <Skeleton width={120} height={24} borderRadius={4} />
-        </View>
+        <AppHeader />
         <ScrollView contentContainerStyle={styles.content}>
-           <View style={{ flexDirection: 'row', gap: 12, marginBottom: 24 }}>
-             <Skeleton flex={1} height={80} borderRadius={12} />
-             <Skeleton flex={1} height={80} borderRadius={12} />
-           </View>
-           {[1, 2, 3].map(i => (
-             <View key={i} style={{ backgroundColor: isDark ? '#1C1C1E' : '#FFFFFF', borderRadius: 16, padding: 16, marginBottom: 16 }}>
-               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                 <Skeleton width={64} height={64} borderRadius={16} />
-                 <View style={{ marginLeft: 16, flex: 1 }}>
-                   <Skeleton width="60%" height={16} borderRadius={4} style={{ marginBottom: 6 }} />
-                   <Skeleton width="40%" height={14} borderRadius={4} style={{ marginBottom: 12 }} />
-                   <Skeleton width="100%" height={8} borderRadius={4} />
-                 </View>
-               </View>
-             </View>
-           ))}
+          <View style={{ flexDirection: 'row', gap: 12, marginBottom: 24 }}>
+            <Skeleton flex={1} height={80} borderRadius={12} />
+            <Skeleton flex={1} height={80} borderRadius={12} />
+          </View>
+          {[1, 2, 3].map(i => (
+            <View key={i} style={{ backgroundColor: isDark ? '#1C1C1E' : '#FFFFFF', borderRadius: 16, padding: 16, marginBottom: 16 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Skeleton width={64} height={64} borderRadius={16} />
+                <View style={{ marginLeft: 16, flex: 1 }}>
+                  <Skeleton width="60%" height={16} borderRadius={4} style={{ marginBottom: 6 }} />
+                  <Skeleton width="40%" height={14} borderRadius={4} style={{ marginBottom: 12 }} />
+                  <Skeleton width="100%" height={8} borderRadius={4} />
+                </View>
+              </View>
+            </View>
+          ))}
         </ScrollView>
       </View>
     );
   }
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.content}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-      }
-    >
-      <View style={styles.topNav}>
-        <View 
-          style={styles.topNavRight} 
-          onLayout={(e) => setPillsLayout(e.nativeEvent.layout)}
-        >
-          <View style={styles.pill}>
-            <Hexagon size={14} color={colors.primary} />
-            <Text style={styles.pillText}>{user.tokens}</Text>
-          </View>
-          <View style={styles.pill}>
-            <Sparkles size={14} color={colors.primary} />
-            <Text style={styles.pillText}>{typeof user.karma === 'number' ? user.karma.toFixed(1) : user.karma}</Text>
-          </View>
-          <TouchableOpacity style={styles.iconBtn} onPress={() => router.push('/notifications')}>
-            <Bell size={20} color={colors.text} />
-            {unreadCount > 0 && <View style={styles.badge} />}
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      <Text style={styles.headerTitle}>Today</Text>
-
-      <View 
-        style={styles.utcCard}
-        onLayout={(e) => {
-          // Adjust for absolute position relative to ScrollView if needed, 
-          // but local coordinates might be fine if Modal is positioned relatively 
-          // or we can use measureInWindow. For simplicity we use onLayout y.
-          setUtcLayout(e.nativeEvent.layout);
-        }}
+    <View style={styles.container}>
+      <AppHeader onLayoutPills={(e) => setPillsLayout(e.nativeEvent.layout)} />
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.content}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
       >
-        <View style={styles.utcHeaderRow}>
-          <Text style={styles.utcHeader}>UTC RESET</Text>
-          <View style={styles.blueDot} />
+
+        {/* <Text style={styles.headerTitle}>Today</Text> */}
+
+        <View
+          style={styles.utcCard}
+          onLayout={(e) => {
+            // Adjust for absolute position relative to ScrollView if needed, 
+            // but local coordinates might be fine if Modal is positioned relatively 
+            // or we can use measureInWindow. For simplicity we use onLayout y.
+            setUtcLayout(e.nativeEvent.layout);
+          }}
+        >
+          <View style={styles.utcHeaderRow}>
+            <Text style={styles.utcHeader}>UTC RESET</Text>
+            <View style={styles.blueDot} />
+          </View>
+          <UtcCountdown />
+          <Text style={styles.utcSub}>Miss the window → -1 karma. No exceptions.</Text>
         </View>
-        <UtcCountdown />
-        <Text style={styles.utcSub}>Miss the window → -1 karma. No exceptions.</Text>
-      </View>
 
-      <View style={styles.metricsRow}>
-        <View style={styles.metricCard}>
-          <Text style={styles.metricLabel}>ACTIVE</Text>
-          <Text style={styles.metricValue}>{activeCount}</Text>
+        <View style={styles.metricsRow}>
+          <View style={styles.metricCard}>
+            <Text style={styles.metricLabel}>ACTIVE</Text>
+            <Text style={styles.metricValue}>{activeCount}</Text>
+          </View>
+          <View style={styles.metricCard}>
+            <Text style={styles.metricLabel}>DONE TODAY</Text>
+            <Text style={styles.metricValue}>{doneTodayCount}</Text>
+          </View>
+          <View style={styles.metricCard}>
+            <Text style={styles.metricLabel}>PENDING</Text>
+            <Text style={styles.metricValue}>{atRiskCount}</Text>
+          </View>
         </View>
-        <View style={styles.metricCard}>
-          <Text style={styles.metricLabel}>DONE TODAY</Text>
-          <Text style={styles.metricValue}>{doneTodayCount}</Text>
-        </View>
-        <View style={styles.metricCard}>
-          <Text style={styles.metricLabel}>PENDING</Text>
-          <Text style={styles.metricValue}>{atRiskCount}</Text>
-        </View>
-      </View>
 
-      <Text style={styles.sectionTitle}>YOUR 14-DAY CONTRACTS</Text>
+        <Text style={styles.sectionTitle}>YOUR 14-DAY CONTRACTS</Text>
 
-      {contracts.length === 0 && (
-        <View onLayout={(e) => setCtaLayout(e.nativeEvent.layout)}>
-          <EmptyState
-            icon={<Rocket size={48} color="#A0A0AB" strokeWidth={1.5} />}
-            title="Start Testing Apps"
-            description="Earn tokens by testing other developers' apps daily."
-            steps={[
-              { title: "Browse the Catalog", description: "Find an app that needs testing in the Catalog tab" },
-              { title: "Opt-in & Install", description: "Follow the Play Store link to opt-in and install the app" },
-              { title: "Upload Proof", description: "Launch the app from here and upload your screenshot proof daily" }
-            ]}
-            buttonText={userIntent === 'developer' ? "Head to Studio" : "Browse Catalog"}
-            onPressButton={() => {
-              if (userIntent === 'developer') {
-                router.push('/(tabs)/studio');
-              } else {
-                router.push('/(tabs)/catalog');
-              }
-            }}
-          />
-        </View>
-      )}
+        {contracts.length === 0 && (
+          <View onLayout={(e) => setCtaLayout(e.nativeEvent.layout)}>
+            <EmptyState
+              icon={<Rocket size={48} color="#A0A0AB" strokeWidth={1.5} />}
+              title="Start Testing Apps"
+              description="Earn tokens by testing other developers' apps daily."
+              steps={[
+                { title: "Browse the Catalog", description: "Find an app that needs testing in the Catalog tab" },
+                { title: "Opt-in & Install", description: "Follow the Play Store link to opt-in and install the app" },
+                { title: "Upload Proof", description: "Launch the app from here and upload your screenshot proof daily" }
+              ]}
+              buttonText={userIntent === 'developer' ? "Head to Studio" : "Browse Catalog"}
+              onPressButton={() => {
+                if (userIntent === 'developer') {
+                  router.push('/(tabs)/studio');
+                } else {
+                  router.push('/(tabs)/catalog');
+                }
+              }}
+            />
+          </View>
+        )}
 
-      {contracts.map((contract: any) => {
-        // App is joined in query
-        const app = contract.app;
-        if (!app) return null;
+        {contracts.map((contract: any) => {
+          // App is joined in query
+          const app = contract.app;
+          if (!app) return null;
 
-        const todayStr = new Date().toISOString().split('T')[0];
+          const todayStr = new Date().toISOString().split('T')[0];
 
-        // Find today's specific contract day
-        const currentDay = contract.days.find((d: any) => d.date === todayStr) || contract.days.find((d: any) => d.status === 'future') || contract.days[0];
+          // Find today's specific contract day
+          const currentDay = contract.days.find((d: any) => d.date === todayStr) || contract.days.find((d: any) => d.status === 'future') || contract.days[0];
 
-        const getCellStatus = (d: any) => {
-          if (d.status === 'done') return 'done';
-          if (d.status === 'verified') return 'pending';
-          if (d.date < todayStr && d.status !== 'done' && d.status !== 'verified') return 'missed';
-          return 'future';
-        };
+          const getCellStatus = (d: any) => {
+            if (d.status === 'done') return 'done';
+            if (d.status === 'verified') return 'pending';
+            if (d.date < todayStr && d.status !== 'done' && d.status !== 'verified') return 'missed';
+            return 'future';
+          };
 
-        const numDays = app.app_type === 'Production' ? 7 : 14;
+          const numDays = app.app_type === 'Production' ? 7 : 14;
 
-        return (
-          <View key={contract.id} style={styles.contractCard}>
-            <TouchableOpacity style={styles.contractHeader} onPress={() => router.push(`/catalog/${app.id}`)}>
-              <View style={styles.appIconPlaceholder}>
-                <AppIcon url={app.icon_url} size={40} />
-              </View>
-              <View>
-                <Text style={styles.appName}>{app.name}</Text>
-                <Text style={styles.appSub}>DAY {currentDay?.day_number || 1}/{numDays} • +1 KARMA PER CHECK-IN</Text>
-              </View>
-            </TouchableOpacity>
-
-            {contract.days.filter((d: any) => d.status === 'rejected' && !d.disputed).map((rejectedDay: any) => (
-              <View key={`reject-${rejectedDay.id}`} style={styles.rejectedBlock}>
-                <Text style={styles.rejectedTitle}>🛑 Proof Rejected (Day {rejectedDay.day_number})</Text>
-                {rejectedDay.reject_reason && <Text style={styles.rejectReason}>Reason: {rejectedDay.reject_reason}</Text>}
-                <View style={{ flexDirection: 'row', gap: 8 }}>
-                  <TouchableOpacity 
-                    style={[styles.btnDispute, { flex: 1, backgroundColor: colors.primary }]} 
-                    onPress={() => handleUploadProof(contract.id, rejectedDay.day_number, rejectedDay.id)}
-                    disabled={isUploading}
-                  >
-                    <Text style={styles.btnTextWhite}>{isUploading ? 'UPLOADING...' : 'RE-UPLOAD'}</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity 
-                    style={[styles.btnDispute, { flex: 1 }]} 
-                    onPress={() => handleDispute(rejectedDay.id)}
-                  >
-                    <Text style={styles.btnTextWhite}>DISPUTE</Text>
-                  </TouchableOpacity>
+          return (
+            <View key={contract.id} style={styles.contractCard}>
+              <TouchableOpacity style={styles.contractHeader} onPress={() => router.push(`/catalog/${app.id}`)}>
+                <View style={styles.appIconPlaceholder}>
+                  <AppIcon url={app.icon_url} size={40} />
                 </View>
-              </View>
-            ))}
+                <View>
+                  <Text style={styles.appName}>{app.name}</Text>
+                  <Text style={styles.appSub}>DAY {currentDay?.day_number || 1}/{numDays} • +1 KARMA PER CHECK-IN</Text>
+                </View>
+              </TouchableOpacity>
 
-            <View style={styles.heatmapRow}>
-              {contract.days.sort((a: any, b: any) => a.day_number - b.day_number).map((d: any, i: number) => {
-                const cellStatus = getCellStatus(d);
-                return (
-                  <View
-                    key={d.day_number || i}
-                    style={[
-                      styles.heatmapCell,
-                      cellStatus === 'done' ? styles.cellDone :
-                        cellStatus === 'pending' ? styles.cellPending :
-                          cellStatus === 'missed' ? styles.cellMissed :
-                            styles.cellFuture
-                    ]}
-                  />
-                );
-              })}
-            </View>
+              {contract.days.filter((d: any) => d.status === 'rejected' && !d.disputed).map((rejectedDay: any) => (
+                <View key={`reject-${rejectedDay.id}`} style={styles.rejectedBlock}>
+                  <Text style={styles.rejectedTitle}>🛑 Proof Rejected (Day {rejectedDay.day_number})</Text>
+                  {rejectedDay.reject_reason && <Text style={styles.rejectReason}>Reason: {rejectedDay.reject_reason}</Text>}
+                  <View style={{ flexDirection: 'row', gap: 8 }}>
+                    <TouchableOpacity
+                      style={[styles.btnDispute, { flex: 1, backgroundColor: colors.primary }]}
+                      onPress={() => handleUploadProof(contract.id, rejectedDay.day_number, rejectedDay.id)}
+                      disabled={isUploading}
+                    >
+                      <Text style={styles.btnTextWhite}>{isUploading ? 'UPLOADING...' : 'RE-UPLOAD'}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.btnDispute, { flex: 1 }]}
+                      onPress={() => handleDispute(rejectedDay.id)}
+                    >
+                      <Text style={styles.btnTextWhite}>DISPUTE</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ))}
 
-            {currentDay?.date === todayStr && (currentDay.status === 'verified' || currentDay.status === 'done') ? (
-              <View style={styles.statusMessageRow}>
-                <Text style={styles.statusMessageText}>
-                  {currentDay.status === 'verified'
-                    ? 'WAITING FOR DEVELOPER CONFIRMATION'
-                    : 'DONE FOR TODAY'}
-                </Text>
+              <View style={styles.heatmapRow}>
+                {contract.days.sort((a: any, b: any) => a.day_number - b.day_number).map((d: any, i: number) => {
+                  const cellStatus = getCellStatus(d);
+                  return (
+                    <View
+                      key={d.day_number || i}
+                      style={[
+                        styles.heatmapCell,
+                        cellStatus === 'done' ? styles.cellDone :
+                          cellStatus === 'pending' ? styles.cellPending :
+                            cellStatus === 'missed' ? styles.cellMissed :
+                              styles.cellFuture
+                      ]}
+                    />
+                  );
+                })}
               </View>
-            ) : currentDay?.date !== todayStr ? (
-              <View style={styles.statusMessageRow}>
-                <Text style={styles.statusMessageText}>
-                  NO TASKS FOR TODAY
-                </Text>
-              </View>
-            ) : (
-              <View style={styles.actionRow}>
-                <TouchableOpacity
-                  style={[styles.btn, styles.btnYellow]}
-                  disabled={activeAppId === contract.id && isTimerRunning}
-                  onPress={() => launchApp(contract)}
-                >
-                  <Rocket size={16} color="#000" />
-                  <Text style={styles.btnTextBlack}>
-                    {activeAppId === contract.id && isTimerRunning ? `APP OPEN... ${timer}s` : 'LAUNCH'}
+
+              {currentDay?.date === todayStr && (currentDay.status === 'verified' || currentDay.status === 'done') ? (
+                <View style={styles.statusMessageRow}>
+                  <Text style={styles.statusMessageText}>
+                    {currentDay.status === 'verified'
+                      ? 'WAITING FOR DEVELOPER CONFIRMATION'
+                      : 'DONE FOR TODAY'}
                   </Text>
-                </TouchableOpacity>
-                <View style={{ alignItems: 'center' }}>
+                </View>
+              ) : currentDay?.date !== todayStr ? (
+                <View style={styles.statusMessageRow}>
+                  <Text style={styles.statusMessageText}>
+                    NO TASKS FOR TODAY
+                  </Text>
+                </View>
+              ) : (
+                <View style={styles.actionRow}>
                   <TouchableOpacity
-                    style={[styles.btn, activeAppId === contract.id && timer <= 0 ? styles.btnBlue : styles.btnDisabled]}
-                    disabled={isUploading || activeAppId !== contract.id || timer > 0}
-                    onPress={() => handleUploadProof(contract.id, currentDay?.day_number || 1, currentDay?.id)}
+                    style={[styles.btn, styles.btnYellow]}
+                    disabled={activeAppId === contract.id && isTimerRunning}
+                    onPress={() => launchApp(contract)}
                   >
-                    <Camera size={16} color={activeAppId === contract.id && timer <= 0 ? "#fff" : "#8E8E93"} />
-                    <Text style={activeAppId === contract.id && timer <= 0 ? styles.btnTextWhite : styles.btnTextDisabled}>
-                      {isUploading ? '...' : (currentDay?.day_number === numDays ? 'SURVEY' : 'PROOF')}
+                    <Rocket size={16} color="#000" />
+                    <Text style={styles.btnTextBlack}>
+                      {activeAppId === contract.id && isTimerRunning ? `APP OPEN... ${timer}s` : 'LAUNCH'}
                     </Text>
                   </TouchableOpacity>
-                  <Text style={{ fontSize: 9, color: colors.primary, fontWeight: '700', marginTop: 4 }}>+1 Karma ⭐</Text>
+                  <View style={{ alignItems: 'center' }}>
+                    <TouchableOpacity
+                      style={[styles.btn, activeAppId === contract.id && timer <= 0 ? styles.btnBlue : styles.btnDisabled]}
+                      disabled={isUploading || activeAppId !== contract.id || timer > 0}
+                      onPress={() => handleUploadProof(contract.id, currentDay?.day_number || 1, currentDay?.id)}
+                    >
+                      <Camera size={16} color={activeAppId === contract.id && timer <= 0 ? "#fff" : "#8E8E93"} />
+                      <Text style={activeAppId === contract.id && timer <= 0 ? styles.btnTextWhite : styles.btnTextDisabled}>
+                        {isUploading ? '...' : (currentDay?.day_number === numDays ? 'SURVEY' : 'PROOF')}
+                      </Text>
+                    </TouchableOpacity>
+                    <Text style={{ fontSize: 9, color: colors.primary, fontWeight: '700', marginTop: 4 }}>+1 Karma ⭐</Text>
+                  </View>
                 </View>
-              </View>
-            )}
-          </View>
-        );
-      })}
+              )}
+            </View>
+          );
+        })}
 
-      {contracts.length > 0 && (
-        <TouchableOpacity
-          style={styles.findBtn}
-          onPress={() => router.push('/catalog')}
-        >
-          <Text style={styles.findBtnText}>FIND ANOTHER APP TO TEST</Text>
-        </TouchableOpacity>
-      )}
-
+        {contracts.length > 0 && (
+          <TouchableOpacity
+            style={styles.findBtn}
+            onPress={() => router.push('/catalog')}
+          >
+            <Text style={styles.findBtnText}>FIND ANOTHER APP TO TEST</Text>
+          </TouchableOpacity>
+        )}
 
 
-      {isFocused && (
-        <>
-          <OnboardingTooltip
-            visible={showTour && tourStep === 1}
-            targetLayout={pillsLayout}
-            title="Your Balances"
-            description="Tokens are currency to list apps. Karma is your reputation score."
-            stepIndex={1}
-            totalSteps={3}
-            onNext={() => setTourStep(2)}
-            onDismiss={() => {
-              setShowTour(false);
-              AsyncStorage.setItem('onboarding_tooltips_completed', 'true');
-            }}
-          />
-          <OnboardingTooltip
-            visible={showTour && tourStep === 2}
-            targetLayout={utcLayout}
-            title="Midnight UTC Reset"
-            description="All daily tasks reset at midnight UTC. Missing a day costs you Karma!"
-            stepIndex={2}
-            totalSteps={3}
-            onNext={() => setTourStep(3)}
-            onDismiss={() => {
-              setShowTour(false);
-              AsyncStorage.setItem('onboarding_tooltips_completed', 'true');
-            }}
-          />
-          <OnboardingTooltip
-            visible={showTour && tourStep === 3}
-            targetLayout={ctaLayout}
-            title={userIntent === 'developer' ? "List your first app" : "Find your first app"}
-            description={userIntent === 'developer' ? "Head to the Studio tab to submit your app for testing." : "Head to the Catalog tab to find an app to test and earn tokens."}
-            stepIndex={3}
-            totalSteps={3}
-            onNext={() => {
-              setShowTour(false);
-              AsyncStorage.setItem('onboarding_tooltips_completed', 'true');
-            }}
-            onDismiss={() => {
-              setShowTour(false);
-              AsyncStorage.setItem('onboarding_tooltips_completed', 'true');
-            }}
-          />
-        </>
-      )}
-    </ScrollView>
+
+        {isFocused && (
+          <>
+            <OnboardingTooltip
+              visible={showTour && tourStep === 1}
+              targetLayout={pillsLayout}
+              title="Your Balances"
+              description="Tokens are currency to list apps. Karma is your reputation score."
+              stepIndex={1}
+              totalSteps={3}
+              onNext={() => setTourStep(2)}
+              onDismiss={() => {
+                setShowTour(false);
+                AsyncStorage.setItem('onboarding_tooltips_completed', 'true');
+              }}
+            />
+            <OnboardingTooltip
+              visible={showTour && tourStep === 2}
+              targetLayout={utcLayout}
+              title="Midnight UTC Reset"
+              description="All daily tasks reset at midnight UTC. Missing a day costs you Karma!"
+              stepIndex={2}
+              totalSteps={3}
+              onNext={() => setTourStep(3)}
+              onDismiss={() => {
+                setShowTour(false);
+                AsyncStorage.setItem('onboarding_tooltips_completed', 'true');
+              }}
+            />
+            <OnboardingTooltip
+              visible={showTour && tourStep === 3}
+              targetLayout={ctaLayout}
+              title={userIntent === 'developer' ? "List your first app" : "Find your first app"}
+              description={userIntent === 'developer' ? "Head to the Studio tab to submit your app for testing." : "Head to the Catalog tab to find an app to test and earn tokens."}
+              stepIndex={3}
+              totalSteps={3}
+              onNext={() => {
+                setShowTour(false);
+                AsyncStorage.setItem('onboarding_tooltips_completed', 'true');
+              }}
+              onDismiss={() => {
+                setShowTour(false);
+                AsyncStorage.setItem('onboarding_tooltips_completed', 'true');
+              }}
+            />
+          </>
+        )}
+      </ScrollView>
+    </View>
   );
 }
 
@@ -533,7 +516,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   content: {
     padding: 12,
-    paddingTop: 32,
+    paddingTop: 12,
     paddingBottom: 20,
   },
   topNav: {

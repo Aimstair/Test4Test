@@ -61,7 +61,8 @@ export const registerPushToken = async (userId: string) => {
 
 export type NotificationType = 'new_tester' | 'new_review' | 'app_expiry' | 'app_full' | 'daily_reports' | 'subscription' | 'new_proof' | 'check_in' | 'testing_finished';
 
-const PUSH_FUNCTION_URL = process.env.EXPO_PUBLIC_PUSH_FUNCTION_URL;
+const PUSH_FUNCTION_URL = process.env.EXPO_PUBLIC_PUSH_FUNCTION_URL || 'https://dykilozjkathhythocff.supabase.co/functions/v1/send-push';
+const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
 
 /**
  * Sends a notification:
@@ -99,13 +100,35 @@ export const sendNotification = async (
       type
     }]);
 
-    // 3a. Server-side push via Edge Function (for any user with a push token)
-    if (user.push_token && PUSH_FUNCTION_URL) {
-      fetch(PUSH_FUNCTION_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ push_token: user.push_token, title, body, data: { type } }),
-      }).catch((e) => console.error('Push send error:', e));
+    // 3a. Server-side push via Edge Function or direct Expo Push API
+    if (user.push_token) {
+      if (PUSH_FUNCTION_URL) {
+        fetch(PUSH_FUNCTION_URL, {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+          },
+          body: JSON.stringify({ push_token: user.push_token, title, body, data: { type } }),
+        }).catch((e) => console.error('Push send error:', e));
+      } else {
+        // Direct Expo Push API fallback for development/MVP
+        fetch('https://exp.host/--/api/v2/push/send', {
+          method: 'POST',
+          headers: {
+            Accept: 'application/json',
+            'Accept-encoding': 'gzip, deflate',
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            to: user.push_token,
+            title: title,
+            body: body,
+            data: { type },
+            sound: 'default'
+          }),
+        }).catch((e) => console.error('Expo Push send error:', e));
+      }
     }
 
     // 3b. Fallback: local immediate notification if sending to self (active device)

@@ -163,6 +163,22 @@ export default function Pricing() {
       </View>
 
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: Math.max(insets.bottom + 20, 60) }]}>
+        
+        {/* Token Education Banner */}
+        <TouchableOpacity 
+          style={styles.earnTokensBanner}
+          onPress={() => router.push('/(tabs)/catalog')}
+        >
+          <View style={styles.bannerIconContainer}>
+            <Text style={{fontSize: 24}}>💡</Text>
+          </View>
+          <View style={styles.bannerTextContainer}>
+            <Text style={styles.bannerTitle}>Want to publish for FREE?</Text>
+            <Text style={styles.bannerSub}>Earn Tokens by testing other apps instead of buying them. Tap here to view the Catalog!</Text>
+          </View>
+          <ChevronLeft size={20} color={colors.primary} style={{transform: [{rotate: '180deg'}]}} />
+        </TouchableOpacity>
+
         <View style={styles.sectionHeaderRow}>
           <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>SUBSCRIPTION</Text>
 
@@ -429,6 +445,34 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   toggleTextActive: {
     color: colors.text,
+  },
+  earnTokensBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: isDark ? 'rgba(59, 130, 246, 0.1)' : '#EBF5FF',
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: isDark ? 'rgba(59, 130, 246, 0.3)' : '#BFDBFE',
+    marginBottom: 24,
+  },
+  bannerIconContainer: {
+    marginRight: 16,
+  },
+  bannerTextContainer: {
+    flex: 1,
+    paddingRight: 8,
+  },
+  bannerTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: colors.primary,
+    marginBottom: 4,
+  },
+  bannerSub: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    lineHeight: 18,
   },
   pricingCard: {
     backgroundColor: colors.card,

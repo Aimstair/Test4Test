@@ -1,14 +1,15 @@
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import * as Clipboard from 'expo-clipboard';
 import { useRouter } from 'expo-router';
-import { ChevronRight, Clock, CreditCard, Gift, HelpCircle, LogOut, Settings, ShieldCheck } from 'lucide-react-native';
+import { ChevronRight, Clock, CreditCard, Gift, HelpCircle, LogOut, Settings, ShieldCheck, Play, Trash2, BellRing } from 'lucide-react-native';
 import { useState } from 'react';
-import { Image, ScrollView, Share, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Image, ScrollView, Share, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useAuth } from '../../api/auth';
 import { useContracts, useUserProfile, useUserStats } from '../../api/queries';
 import Skeleton from '../../components/Skeleton';
 import { supabase } from '../../lib/supabase';
 import { useTheme } from '../../theme/ThemeContext';
+import { sendNotification } from '../../utils/notifications';
 
 export default function Profile() {
   const router = useRouter();
@@ -89,7 +90,7 @@ export default function Profile() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.headerTitle}>Me</Text>
+      {/* <Text style={styles.headerTitle}>Me</Text> */}
 
       <View style={styles.profileCard}>
         <View style={styles.profileHeader}>
@@ -245,6 +246,7 @@ export default function Profile() {
         </TouchableOpacity>
       </View>
 
+
       {user.role === 'admin' && (
         <>
           <Text style={styles.sectionTitle}>ADMINISTRATION</Text>
@@ -265,7 +267,7 @@ export default function Profile() {
 
       <Text style={styles.sectionTitle}>SESSION</Text>
 
-      <View style={[styles.card, { padding: 0, marginBottom: 40 }]}>
+      <View style={[styles.card, { padding: 0 }]}>
         <TouchableOpacity style={styles.listItem} onPress={handleSignOut}>
           <View style={styles.iconContainer}>
             <LogOut size={20} color="#FF3B30" />
@@ -289,7 +291,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   content: {
     padding: 12,
     paddingTop: 48,
-    paddingBottom: 20,
+    paddingBottom: 32,
   },
   headerTitle: {
     fontSize: 28,

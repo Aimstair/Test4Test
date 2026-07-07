@@ -1,4 +1,4 @@
-import { Check, ChevronLeft, ChevronRight, Flag, Image as ImageIcon, X } from 'lucide-react-native';
+import { Check, ChevronLeft, ChevronRight, Flag, Image as ImageIcon, X, Flame } from 'lucide-react-native';
 import { useRef, useState } from 'react';
 import { Animated, Image, Modal, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useAuth } from '../../api/auth';
@@ -6,6 +6,7 @@ import { useApprovedProofsCount, useProofQueue, useReviewProof, useUserProfile, 
 import EmptyState from '../../components/EmptyState';
 import { useTheme } from '../../theme/ThemeContext';
 import Skeleton from '../../components/Skeleton';
+import AppHeader from '../../components/AppHeader';
 
 export default function Verify() {
   const { colors, isDark } = useTheme();
@@ -128,8 +129,8 @@ export default function Verify() {
   if (isLoading) {
     return (
       <View style={styles.container}>
+        <AppHeader />
         <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.content}>
-           <Skeleton width={120} height={32} borderRadius={4} style={{ marginBottom: 24 }} />
            <View style={styles.appSelectorCard}>
              <View style={styles.selectorHeader}>
                <Skeleton width={24} height={24} borderRadius={12} />
@@ -162,6 +163,7 @@ export default function Verify() {
 
   return (
     <View style={styles.container}>
+      <AppHeader />
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={styles.content}
@@ -169,7 +171,6 @@ export default function Verify() {
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
       }
     >
-      <Text style={styles.headerTitle}>Verify</Text>
 
       <View style={styles.appSelectorCard}>
         <View style={styles.selectorHeader}>
@@ -296,9 +297,12 @@ export default function Verify() {
             >
               <Check size={20} color={colors.background} />
               <Text style={styles.btnApproveText}>APPROVE</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginLeft: 4 }}>
+                <Flame size={18} color="#ef4444" />
+                <Text style={{ fontSize: 16, fontWeight: '800', color: '#FFFFFF' }}>+0.5</Text>
+              </View>
             </TouchableOpacity>
           </View>
-          <Text style={{ fontSize: 9, color: colors.primary, fontWeight: '700', textAlign: 'right', marginTop: 4 }}>Approve earns +0.5 Karma ⭐</Text>
         </View>
       ))}
 
@@ -376,7 +380,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   content: {
     padding: 12,
-    paddingTop: 48,
+    paddingTop: 12,
     paddingBottom: 20,
   },
   headerTitle: {

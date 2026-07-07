@@ -210,9 +210,10 @@ export default function StudioDetail() {
   });
 
   const maxDataVal = Math.max(testerLimit, ...chartData.map(c => Math.max(c.installs, c.checkins)));
-  const chartMax = Math.ceil(maxDataVal / 5) * 5;
+  const chartMax = Math.max(5, Math.ceil(maxDataVal / 5) * 5);
+  const step = chartMax / 5;
   const yAxisLabels = [];
-  for (let i = chartMax; i >= 0; i -= 5) {
+  for (let i = chartMax; i >= 0; i -= step) {
     yAxisLabels.push(i);
   }
 
@@ -824,8 +825,17 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     color: colors.text,
   },
   reviewsContainer: {
-    gap: 0,
+    gap: 12,
     marginBottom: 12,
+  },
+  testerCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.card,
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   reviewCard: {
     backgroundColor: colors.card,

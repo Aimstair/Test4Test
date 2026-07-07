@@ -1,10 +1,11 @@
 import { useRouter } from 'expo-router';
-import { Bell, Globe, Hexagon, Search, Sparkles, Star } from 'lucide-react-native';
+import { Coins, Flame, Globe, Search, Star } from 'lucide-react-native';
 import { useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../api/auth';
 import { useCatalog, useNotifications, useUserProfile } from '../../api/queries';
+import AppHeader from '../../components/AppHeader';
 import AppIcon from '../../components/AppIcon';
 import EmptyState from '../../components/EmptyState';
 import Skeleton from '../../components/Skeleton';
@@ -74,171 +75,151 @@ export default function Catalog() {
   if (loadingProfile || loadingCatalog) {
     return (
       <View style={styles.container}>
-        <View style={{ marginTop: Math.max(insets.top, 20), paddingHorizontal: 16, marginBottom: 20 }}>
-           <Skeleton width={150} height={24} borderRadius={4} />
-        </View>
+        <AppHeader />
         <ScrollView contentContainerStyle={styles.content}>
-           <View style={{ marginBottom: 24 }}>
-             <Skeleton width="100%" height={40} borderRadius={8} />
-           </View>
-           {[1, 2, 3].map(i => (
-             <View key={i} style={{ backgroundColor: isDark ? '#1C1C1E' : '#FFFFFF', borderRadius: 16, padding: 16, marginBottom: 16 }}>
-               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                 <Skeleton width={64} height={64} borderRadius={16} />
-                 <View style={{ marginLeft: 16, flex: 1 }}>
-                   <Skeleton width="60%" height={16} borderRadius={4} style={{ marginBottom: 6 }} />
-                   <Skeleton width="40%" height={14} borderRadius={4} style={{ marginBottom: 12 }} />
-                   <Skeleton width="80%" height={14} borderRadius={4} />
-                 </View>
-               </View>
-             </View>
-           ))}
+          <View style={{ marginBottom: 24 }}>
+            <Skeleton width="100%" height={40} borderRadius={8} />
+          </View>
+          {[1, 2, 3].map(i => (
+            <View key={i} style={{ backgroundColor: isDark ? '#1C1C1E' : '#FFFFFF', borderRadius: 16, padding: 16, marginBottom: 16 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Skeleton width={64} height={64} borderRadius={16} />
+                <View style={{ marginLeft: 16, flex: 1 }}>
+                  <Skeleton width="60%" height={16} borderRadius={4} style={{ marginBottom: 6 }} />
+                  <Skeleton width="40%" height={14} borderRadius={4} style={{ marginBottom: 12 }} />
+                  <Skeleton width="80%" height={14} borderRadius={4} />
+                </View>
+              </View>
+            </View>
+          ))}
         </ScrollView>
       </View>
     );
   }
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.content}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-      }
-    >
-      <View style={styles.topNav}>
-        <View style={styles.topNavRight}>
-          <View style={styles.pill}>
-            <Hexagon size={14} color={colors.primary} />
-            <Text style={styles.pillText}>{user.tokens}</Text>
-          </View>
-          <View style={styles.pill}>
-            <Sparkles size={14} color={colors.primary} />
-            <Text style={styles.pillText}>{user.karma.toFixed(1)}</Text>
-          </View>
-          <TouchableOpacity style={styles.iconBtn} onPress={() => router.push('/notifications')}>
-            <Bell size={20} color={colors.text} />
-            {unreadCount > 0 && <View style={styles.badge} />}
+    <View style={styles.container}>
+      <AppHeader />
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.content}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
+
+        {/* <Text style={styles.headerTitle}>Catalog</Text> */}
+
+        <View style={styles.searchBar}>
+          <Search size={20} color={colors.textSecondary} style={styles.searchIcon} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search apps"
+            placeholderTextColor={colors.placeholder}
+          />
+        </View>
+
+        <View style={styles.segmentControl}>
+          <TouchableOpacity
+            style={[styles.segmentBtn, filter === 'Boosted' && styles.segmentBtnActive]}
+            onPress={() => setFilter('Boosted')}
+          >
+            <Text style={[styles.segmentBtnText, filter === 'Boosted' && styles.segmentBtnTextActive]}>Boosted 🔥</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.segmentBtn, filter === 'All' && styles.segmentBtnActive]}
+            onPress={() => setFilter('All')}
+          >
+            <Text style={[styles.segmentBtnText, filter === 'All' && styles.segmentBtnTextActive]}>All Apps</Text>
           </TouchableOpacity>
         </View>
-      </View>
 
-      <Text style={styles.headerTitle}>Catalog</Text>
+        <View style={styles.filterRow}>
+          <Text style={styles.filterText}>{filter === 'Boosted' ? 'PROMOTED APPS' : 'SORTED BY DEVELOPER KARMA'}</Text>
+          <Text style={styles.filterText}>{catalog.length} APPS</Text>
+        </View>
 
-      <View style={styles.searchBar}>
-        <Search size={20} color={colors.textSecondary} style={styles.searchIcon} />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Search apps"
-          placeholderTextColor={colors.placeholder}
-        />
-      </View>
+        {catalog.length === 0 && (
+          <EmptyState
+            icon={<Search size={48} color="#A0A0AB" strokeWidth={1.5} />}
+            title="No Apps Available"
+            description="There are currently no apps listed for testing. Be the first to publish one!"
+            steps={[
+              { title: "Build your listing", description: "Go to the Build tab to add your app details" },
+              { title: "Publish", description: "Publish your listing to make it available for testers" },
+              { title: "Get Tested", description: "Testers will opt-in and test your app for 14 days" }
+            ]}
+            buttonText="Go to Build"
+            onPressButton={() => router.push('/(tabs)/studio')}
+          />
+        )}
 
-      <View style={styles.segmentControl}>
-        <TouchableOpacity
-          style={[styles.segmentBtn, filter === 'Boosted' && styles.segmentBtnActive]}
-          onPress={() => setFilter('Boosted')}
-        >
-          <Text style={[styles.segmentBtnText, filter === 'Boosted' && styles.segmentBtnTextActive]}>Boosted 🔥</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.segmentBtn, filter === 'All' && styles.segmentBtnActive]}
-          onPress={() => setFilter('All')}
-        >
-          <Text style={[styles.segmentBtnText, filter === 'All' && styles.segmentBtnTextActive]}>All Apps</Text>
-        </TouchableOpacity>
-      </View>
+        {catalog.map((app) => {
+          const isNew = new Date(app.created_at).getTime() > new Date().getTime() - 24 * 60 * 60 * 1000;
+          const avgRating = app.reviews?.length
+            ? (app.reviews.reduce((acc: number, r: any) => acc + r.rating, 0) / app.reviews.length).toFixed(1)
+            : isNew ? 'New' : '0';
 
-      <View style={styles.filterRow}>
-        <Text style={styles.filterText}>{filter === 'Boosted' ? 'PROMOTED APPS' : 'SORTED BY DEVELOPER KARMA'}</Text>
-        <Text style={styles.filterText}>{catalog.length} APPS</Text>
-      </View>
+          return (
+            <TouchableOpacity
+              key={app.id}
+              style={styles.appCard}
+              onPress={() => router.push(`/catalog/${app.id}`)}
+            >
+              <View style={styles.appIconPlaceholder}>
+                <AppIcon url={app.icon_url} size={48} />
+              </View>
 
-      {catalog.length === 0 && (
-        <EmptyState
-          icon={<Search size={48} color="#A0A0AB" strokeWidth={1.5} />}
-          title="No Apps Available"
-          description="There are currently no apps listed for testing. Be the first to publish one!"
-          steps={[
-            { title: "Build your listing", description: "Go to the Build tab to add your app details" },
-            { title: "Publish", description: "Publish your listing to make it available for testers" },
-            { title: "Get Tested", description: "Testers will opt-in and test your app for 14 days" }
-          ]}
-          buttonText="Go to Build"
-          onPressButton={() => router.push('/(tabs)/studio')}
-        />
-      )}
+              <View style={styles.appInfo}>
+                <View style={styles.appTitleRow}>
+                  <Text style={styles.appName}>{app.name}</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    {app.boost_ends_at && new Date(app.boost_ends_at) > new Date() && (
+                      <View style={{ backgroundColor: 'rgba(255, 149, 0, 0.1)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, marginLeft: 6 }}>
+                        <Text style={{ fontSize: 9, fontWeight: '800', color: '#FF9500' }}>🔥</Text>
+                      </View>
+                    )}
+                    {app.app_type === 'Production' && (
+                      <View style={{ backgroundColor: 'rgba(52, 199, 89, 0.1)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, marginLeft: 6 }}>
+                        <Text style={{ fontSize: 9, fontWeight: '800', color: '#34C759' }}>⭐</Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
+                <Text style={styles.appBlurb} numberOfLines={1}>{app.blurb}</Text>
 
-      {catalog.map((app) => {
-        const isNew = new Date(app.created_at).getTime() > new Date().getTime() - 24 * 60 * 60 * 1000;
-        const avgRating = app.reviews?.length
-          ? (app.reviews.reduce((acc: number, r: any) => acc + r.rating, 0) / app.reviews.length).toFixed(1)
-          : isNew ? 'New' : '0';
-
-        return (
-          <TouchableOpacity
-            key={app.id}
-            style={styles.appCard}
-            onPress={() => router.push(`/catalog/${app.id}`)}
-          >
-            <View style={styles.appIconPlaceholder}>
-              <AppIcon url={app.icon_url} size={48} />
-            </View>
-
-            <View style={styles.appInfo}>
-              <View style={styles.appTitleRow}>
-                <Text style={styles.appName}>{app.name}</Text>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  {app.boost_ends_at && new Date(app.boost_ends_at) > new Date() && (
-                    <View style={{ backgroundColor: 'rgba(255, 149, 0, 0.1)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, marginLeft: 6 }}>
-                      <Text style={{ fontSize: 9, fontWeight: '800', color: '#FF9500' }}>🔥</Text>
+                <View style={styles.appTags}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginRight: 8 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                      <Coins size={16} color="#eab308" />
+                      <Text style={{ fontSize: 16, fontWeight: '800', color: colors.text }}>
+                        +{app.boost_ends_at && new Date(app.boost_ends_at) > new Date() ? app.bounty + 10 : app.bounty}
+                      </Text>
                     </View>
-                  )}
-                  {app.app_type === 'Production' && (
-                    <View style={{ backgroundColor: 'rgba(52, 199, 89, 0.1)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, marginLeft: 6 }}>
-                      <Text style={{ fontSize: 9, fontWeight: '800', color: '#34C759' }}>⭐</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                      <Flame size={16} color="#ef4444" />
+                      <Text style={{ fontSize: 16, fontWeight: '800', color: colors.text }}>+1</Text>
                     </View>
-                  )}
+                  </View>
+                  <View style={styles.tagOutline}>
+                    <Star size={12} color={avgRating === 'New' ? colors.textSecondary : colors.text} fill={avgRating === 'New' ? "transparent" : colors.text} />
+                    <Text style={[styles.tagOutlineText, avgRating === 'New' && { color: colors.textSecondary }]}>{avgRating}</Text>
+                  </View>
+                  <View style={styles.tagTextRow}>
+                    {app.geo_targets?.includes('Global') ? (
+                      <Globe size={14} color={colors.primary} />
+                    ) : (
+                      <Text style={styles.tagText}>{(app.geo_targets || []).join(' ')}</Text>
+                    )}
+                  </View>
                 </View>
               </View>
-              <Text style={styles.appBlurb} numberOfLines={1}>{app.blurb}</Text>
+            </TouchableOpacity>
+          );
+        })}
 
-              <View style={styles.appTags}>
-                <View style={[
-                  styles.tierBadge,
-                  { marginRight: 6 },
-                  app.tier === 'Pro+' && styles.tierBadgeBlack
-                ]}>
-                  <Text style={[
-                    styles.tierText,
-                    app.tier === 'Pro+' && { color: isDark ? '#000' : '#fff' }
-                  ]}>
-                    {app.tier.toUpperCase()}
-                  </Text>
-                </View>
-                <View style={styles.tagBlue}>
-                  <Text style={styles.tagBlueText}>
-                    {app.boost_ends_at && new Date(app.boost_ends_at) > new Date() ? app.bounty + 10 : app.bounty} tokens
-                  </Text>
-                </View>
-                <View style={styles.tagOutline}>
-                  <Star size={12} color={avgRating === 'New' ? colors.textSecondary : colors.text} fill={avgRating === 'New' ? "transparent" : colors.text} />
-                  <Text style={[styles.tagOutlineText, avgRating === 'New' && { color: colors.textSecondary }]}>{avgRating}</Text>
-                </View>
-                <View style={styles.tagTextRow}>
-                  {app.geo_targets?.includes('Global') ? (
-                    <Globe size={14} color={colors.primary} />
-                  ) : (
-                    <Text style={styles.tagText}>{(app.geo_targets || []).join(' ')}</Text>
-                  )}
-                </View>
-              </View>
-            </View>
-          </TouchableOpacity>
-        );
-      })}
-
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }
 
@@ -249,7 +230,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   content: {
     padding: 12,
-    paddingTop: 32,
+    paddingTop: 12,
     paddingBottom: 20,
   },
   topNav: {

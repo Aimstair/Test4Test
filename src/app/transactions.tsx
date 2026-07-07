@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { ChevronLeft } from 'lucide-react-native';
+import { ChevronLeft, Flame, Coins } from 'lucide-react-native';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../api/auth';
@@ -78,6 +78,12 @@ export default function Transactions() {
                   </Text>
                 </View>
                 <View style={styles.txRight}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                  {tx.currency === 'karma' ? (
+                    <Flame size={16} color="#ef4444" />
+                  ) : (
+                    <Coins size={16} color="#eab308" />
+                  )}
                   <Text
                     style={[
                       styles.txAmount,
@@ -87,8 +93,9 @@ export default function Transactions() {
                     ]}
                   >
                     {(tx.type === 'token_gain' || tx.type === 'karma_gain') ? '+' : ''}
-                    {tx.amount} {tx.currency === 'karma' ? 'Karma' : 'Tokens'}
+                    {tx.amount}
                   </Text>
+                </View>
                 </View>
               </View>
             ))}
