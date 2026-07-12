@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, SectionList, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Bell, Check, ChevronLeft, Trash2, UserPlus, Star, Clock, AlertCircle, BarChart2, CreditCard, ShieldCheck, CheckCircle } from 'lucide-react-native';
 import { useAuth } from '../api/auth';
@@ -8,6 +8,7 @@ import { supabase } from '../lib/supabase';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTheme } from '../theme/ThemeContext';
 import Skeleton from '../components/Skeleton';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function Notifications() {
   const router = useRouter();
@@ -16,9 +17,32 @@ export default function Notifications() {
   const queryClient = useQueryClient();
   const { colors, isDark } = useTheme();
   const styles = getStyles(colors, isDark);
+  const insets = useSafeAreaInsets();
 
   const notifications = notificationsData || [];
   const unreadCount = notifications.filter((n: any) => !n.is_read).length;
+
+  // Group notifications by date
+  const grouped = notifications.reduce((acc: any, curr: any) => {
+    const d = new Date(curr.created_at);
+    // Determine if today, yesterday, or other
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    
+    let title = d.toLocaleDateString();
+    if (title === today.toLocaleDateString()) title = 'Today';
+    else if (title === yesterday.toLocaleDateString()) title = 'Yesterday';
+
+    if (!acc[title]) acc[title] = [];
+    acc[title].push(curr);
+    return acc;
+  }, {});
+
+  const sections = Object.keys(grouped).map(key => ({
+    title: key,
+    data: grouped[key]
+  }));
 
   const handleMarkAllRead = async () => {
     await supabase
@@ -26,7 +50,7 @@ export default function Notifications() {
       .update({ is_read: true })
       .eq('user_id', session?.user?.id)
       .eq('is_read', false);
-    queryClient.invalidateQueries({ queryKey: ['notifications'] });
+    queryClient.invalidateQueries({ queryKey: ['notifications', session?.user?.id] });
   };
 
   const handleClearAll = async () => {
@@ -34,7 +58,7 @@ export default function Notifications() {
       .from('notifications')
       .delete()
       .eq('user_id', session?.user?.id);
-    queryClient.invalidateQueries({ queryKey: ['notifications'] });
+    queryClient.invalidateQueries({ queryKey: ['notifications', session?.user?.id] });
   };
 
   const handleMarkRead = async (id: string) => {
@@ -42,15 +66,21 @@ export default function Notifications() {
       .from('notifications')
       .update({ is_read: true })
       .eq('id', id);
-    queryClient.invalidateQueries({ queryKey: ['notifications'] });
+    queryClient.invalidateQueries({ queryKey: ['notifications', session?.user?.id] });
   };
 
   const handleDelete = async (id: string) => {
-    await supabase
-      .from('notifications')
-      .delete()
-      .eq('id', id);
-    queryClient.invalidateQueries({ queryKey: ['notifications'] });
+    try {
+      const { error } = await supabase
+        .from('notifications')
+        .delete()
+        .eq('id', id);
+      if (error) throw error;
+      queryClient.invalidateQueries({ queryKey: ['notifications', session?.user?.id] });
+    } catch (e) {
+      console.error('Failed to delete notification:', e);
+      alert('Failed to delete notification.');
+    }
   };
 
   const getIcon = (type: string) => {
@@ -77,7 +107,7 @@ export default function Notifications() {
             <Text style={styles.backText}>Back</Text>
           </TouchableOpacity>
         </View>
-        <ScrollView contentContainerStyle={styles.content}>
+        <View style={[styles.content, { paddingBottom: Math.max(insets.bottom, 48) }]}>
           <View style={styles.titleRow}>
             <Text style={styles.title}>Notifications</Text>
           </View>
@@ -95,7 +125,7 @@ export default function Notifications() {
               </View>
             ))}
           </View>
-        </ScrollView>
+        </View>
       </View>
     );
   }
@@ -109,53 +139,62 @@ export default function Notifications() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.titleRow}>
-          <Text style={styles.title}>Notifications</Text>
-          {unreadCount > 0 && (
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>{unreadCount}</Text>
+      <SectionList 
+        contentContainerStyle={[styles.content, { paddingBottom: Math.max(insets.bottom, 48) }]}
+        sections={sections}
+        keyExtractor={(item) => item.id}
+        renderSectionHeader={({ section: { title } }) => (
+          <Text style={styles.sectionHeader}>{title}</Text>
+        )}
+        ListHeaderComponent={
+          <>
+            <View style={styles.titleRow}>
+              <Text style={styles.title}>Notifications</Text>
+              {unreadCount > 0 && (
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>{unreadCount}</Text>
+                </View>
+              )}
             </View>
-          )}
-        </View>
 
-        <View style={styles.actionsRow}>
-          <TouchableOpacity style={styles.actionBtn} onPress={handleMarkAllRead}>
-            <Check size={14} color={colors.textSecondary} />
-            <Text style={styles.actionTextGrey}>Mark all read</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.actionBtn} onPress={handleClearAll}>
-            <Trash2 size={14} color={colors.danger} />
-            <Text style={styles.actionTextRed}>Clear all</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.list}>
-          {notifications.map((n: any) => (
-            <View key={n.id} style={[styles.card, !n.is_read && styles.cardUnread]}>
-              {!n.is_read && <View style={styles.unreadStrip} />}
-              <View style={styles.iconWrapper}>
-                {getIcon(n.type)}
-              </View>
-              <View style={styles.cardContent}>
-                <Text style={styles.cardTitle}>{n.title}</Text>
-                <Text style={styles.cardDesc}>{n.body}</Text>
-                <Text style={styles.cardTime}>{new Date(n.created_at).toLocaleDateString()}</Text>
-              </View>
-              <View style={styles.cardActions}>
-                {!n.is_read ? (
-                  <TouchableOpacity style={styles.iconAction} onPress={() => handleMarkRead(n.id)}>
-                    <Check size={16} color={colors.success} />
-                  </TouchableOpacity>
-                ) : null}
-                <TouchableOpacity style={styles.iconAction} onPress={() => handleDelete(n.id)}>
-                  <Trash2 size={16} color={colors.textSecondary} />
+            <View style={styles.actionsRow}>
+              <TouchableOpacity style={styles.actionBtn} onPress={handleMarkAllRead}>
+                <Check size={14} color={colors.textSecondary} />
+                <Text style={styles.actionTextGrey}>Mark all read</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.actionBtn} onPress={handleClearAll}>
+                <Trash2 size={14} color={colors.danger} />
+                <Text style={styles.actionTextRed}>Clear all</Text>
+              </TouchableOpacity>
+            </View>
+          </>
+        }
+        renderItem={({ item: n }) => (
+          <View style={[styles.card, !n.is_read && styles.cardUnread]}>
+            {!n.is_read && <View style={styles.unreadStrip} />}
+            <View style={styles.iconWrapper}>
+              {getIcon(n.type)}
+            </View>
+            <View style={styles.cardContent}>
+              <Text style={styles.cardTitle}>{n.title}</Text>
+              <Text style={styles.cardDesc}>{n.body}</Text>
+              <Text style={styles.cardTime}>
+                {new Date(n.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              </Text>
+            </View>
+            <View style={styles.cardActions}>
+              {!n.is_read ? (
+                <TouchableOpacity style={styles.iconAction} onPress={() => handleMarkRead(n.id)}>
+                  <Check size={16} color={colors.success} />
                 </TouchableOpacity>
-              </View>
+              ) : <View style={{ width: 16 }} />}
+              <TouchableOpacity style={styles.iconAction} onPress={() => handleDelete(n.id)}>
+                <Trash2 size={16} color={colors.textSecondary} />
+              </TouchableOpacity>
             </View>
-          ))}
-        </View>
-      </ScrollView>
+          </View>
+        )}
+      />
     </View>
   );
 }
@@ -235,6 +274,13 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
+  sectionHeader: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.text,
+    marginTop: 16,
+    marginBottom: 8,
+  },
   list: { 
     gap: 12,
   },
@@ -293,12 +339,12 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     color: colors.textSecondary,
   },
   cardActions: {
-    padding: 16,
-    justifyContent: 'flex-start',
-    alignItems: 'flex-end',
+    paddingLeft: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
     gap: 16,
   },
   iconAction: {
-    padding: 4,
+    padding: 8,
   },
 });

@@ -1,8 +1,8 @@
 import { useRouter } from 'expo-router';
-import { Check, ChevronLeft } from 'lucide-react-native';
+import { Check, ChevronLeft, Clock, Coins, Diamond, Flame, Infinity as InfinityIcon, PackageCheck, Smartphone, Star, Users, Zap } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import Purchases, { PurchasesOffering, CustomerInfo } from 'react-native-purchases';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import Purchases, { CustomerInfo, PurchasesOffering } from 'react-native-purchases';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../api/auth';
 import { usePurchaseSubscription, usePurchaseTokens, useUserProfile } from '../api/queries';
@@ -122,7 +122,7 @@ export default function Pricing() {
     const currentTier = userProfile?.subscription_tier;
     if (currentTier === tier) {
       let expDateObj: Date | null = null;
-      
+
       if (customerInfo) {
         const activeEnts = Object.values(customerInfo.entitlements.active);
         if (activeEnts.length > 0 && activeEnts[0].expirationDate) {
@@ -163,20 +163,20 @@ export default function Pricing() {
       </View>
 
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: Math.max(insets.bottom + 20, 60) }]}>
-        
+
         {/* Token Education Banner */}
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.earnTokensBanner}
           onPress={() => router.push('/(tabs)/catalog')}
         >
           <View style={styles.bannerIconContainer}>
-            <Text style={{fontSize: 24}}>💡</Text>
+            <Text style={{ fontSize: 24 }}>💡</Text>
           </View>
           <View style={styles.bannerTextContainer}>
             <Text style={styles.bannerTitle}>Want to publish for FREE?</Text>
             <Text style={styles.bannerSub}>Earn Tokens by testing other apps instead of buying them. Tap here to view the Catalog!</Text>
           </View>
-          <ChevronLeft size={20} color={colors.primary} style={{transform: [{rotate: '180deg'}]}} />
+          <ChevronLeft size={20} color={colors.primary} style={{ transform: [{ rotate: '180deg' }] }} />
         </TouchableOpacity>
 
         <View style={styles.sectionHeaderRow}>
@@ -193,7 +193,9 @@ export default function Pricing() {
               style={[styles.toggleBtn, billing === 'yearly' && styles.toggleBtnActive]}
               onPress={() => setBilling('yearly')}
             >
-              <Text style={[styles.toggleText, billing === 'yearly' && styles.toggleTextActive]}>Yearly</Text>
+              <Text style={[styles.toggleText, billing === 'yearly' && styles.toggleTextActive]}>
+                Yearly <Text style={{ color: '#34C759', fontSize: 10, fontWeight: '800' }}>-20%</Text>
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -244,7 +246,7 @@ export default function Pricing() {
               <Text style={styles.tierSub}>For active developers</Text>
             </View>
             <Text style={styles.tierPrice}>
-              {billing === 'monthly' ? '$15' : '$149'}
+              {billing === 'monthly' ? '$5' : '$48'}
               <Text style={styles.priceMo}>{billing === 'monthly' ? '/mo' : '/yr'}</Text>
             </Text>
           </View>
@@ -254,7 +256,7 @@ export default function Pricing() {
           <View style={styles.featuresList}>
             <View style={styles.featureItem}>
               <Check size={14} color={colors.primary} />
-              <Text style={styles.featureText}>List 5 apps</Text>
+              <Text style={styles.featureText}>List 3 apps</Text>
             </View>
             <View style={styles.featureItem}>
               <Check size={14} color={colors.primary} />
@@ -266,7 +268,7 @@ export default function Pricing() {
             </View>
             <View style={styles.featureItem}>
               <Check size={14} color={colors.primary} />
-              <Text style={styles.featureText}>20 day listing duration</Text>
+              <Text style={styles.featureText}>Unlimited listing duration</Text>
             </View>
             <View style={styles.featureItem}>
               <Check size={14} color={colors.primary} />
@@ -296,7 +298,7 @@ export default function Pricing() {
               <Text style={styles.tierSub}>For studios and teams</Text>
             </View>
             <Text style={styles.tierPrice}>
-              {billing === 'monthly' ? '$49' : '$349'}
+              {billing === 'monthly' ? '$15' : '$144'}
               <Text style={styles.priceMo}>{billing === 'monthly' ? '/mo' : '/yr'}</Text>
             </Text>
           </View>
@@ -306,7 +308,7 @@ export default function Pricing() {
           <View style={styles.featuresList}>
             <View style={styles.featureItem}>
               <Check size={14} color={colors.primary} />
-              <Text style={styles.featureText}>List 10 apps</Text>
+              <Text style={styles.featureText}>List 5 apps</Text>
             </View>
             <View style={styles.featureItem}>
               <Check size={14} color={colors.primary} />
@@ -341,36 +343,145 @@ export default function Pricing() {
           </TouchableOpacity>
         </View>
 
+        <View style={styles.tableContainer}>
+          <Text style={[styles.sectionTitle, { marginBottom: 16 }]}>COMPARE PLANS</Text>
+          <View style={styles.table}>
+            <View style={[styles.tableRow, styles.tableHeader]}>
+              <Text style={[styles.tableCell, styles.tableCellHeader, { flex: 1.5 }]}></Text>
+              <View style={[styles.tableCell, { alignItems: 'center' }]}>
+                <Star size={16} color={colors.textSecondary} style={{ marginBottom: 4 }} />
+                <Text style={styles.tableCellHeader}>Basic</Text>
+              </View>
+              <View style={[styles.tableCell, { alignItems: 'center' }]}>
+                <Zap size={16} color="#FF9500" style={{ marginBottom: 4 }} />
+                <Text style={[styles.tableCellHeader, { color: '#FF9500' }]}>Pro</Text>
+              </View>
+              <View style={[styles.tableCell, { alignItems: 'center' }]}>
+                <Diamond size={16} color="#A855F7" style={{ marginBottom: 4 }} />
+                <Text style={[styles.tableCellHeader, { color: '#A855F7' }]}>Pro+</Text>
+              </View>
+            </View>
+            <View style={styles.tableRow}>
+              <View style={styles.tableCellLabelContainer}>
+                <Smartphone size={14} color={colors.textSecondary} />
+                <Text style={styles.tableCellLabel}>Active Listings</Text>
+              </View>
+              <Text style={styles.tableCell}>1</Text>
+              <Text style={styles.tableCell}>3</Text>
+              <Text style={styles.tableCell}>5</Text>
+            </View>
+            <View style={styles.tableRow}>
+              <View style={styles.tableCellLabelContainer}>
+                <Users size={14} color={colors.textSecondary} />
+                <Text style={styles.tableCellLabel}>Testers</Text>
+              </View>
+              <Text style={styles.tableCell}>12</Text>
+              <Text style={styles.tableCell}>25</Text>
+              <Text style={styles.tableCell}>50</Text>
+            </View>
+            <View style={styles.tableRow}>
+              <View style={styles.tableCellLabelContainer}>
+                <Clock size={14} color={colors.textSecondary} />
+                <Text style={styles.tableCellLabel}>Listing Duration</Text>
+              </View>
+              <Text style={styles.tableCell}>12d</Text>
+              <Text style={styles.tableCell}>
+                <InfinityIcon size={14} color={colors.text} />
+              </Text>
+              <Text style={styles.tableCell}>
+                <InfinityIcon size={14} color={colors.text} />
+              </Text>
+            </View>
+            <View style={styles.tableRow}>
+              <View style={styles.tableCellLabelContainer}>
+                <PackageCheck size={14} color={colors.textSecondary} />
+                <Text style={styles.tableCellLabel}>Basic Listing</Text>
+              </View>
+              <Text style={styles.tableCell}>
+                <Coins size={10} color="#eab308" /> 80
+              </Text>
+              <Text style={styles.tableCell}>Free</Text>
+              <Text style={styles.tableCell}>Free</Text>
+            </View>
+            <View style={styles.tableRow}>
+              <View style={styles.tableCellLabelContainer}>
+                <PackageCheck size={14} color={colors.textSecondary} />
+                <Text style={styles.tableCellLabel}>Pro Listing</Text>
+              </View>
+              <Text style={styles.tableCell}>
+                <Coins size={10} color="#eab308" /> 150
+              </Text>
+              <Text style={styles.tableCell}>Free</Text>
+              <Text style={styles.tableCell}>Free</Text>
+            </View>
+            <View style={styles.tableRow}>
+              <View style={styles.tableCellLabelContainer}>
+                <PackageCheck size={14} color={colors.textSecondary} />
+                <Text style={styles.tableCellLabel}>Pro+ Listing</Text>
+              </View>
+              <Text style={styles.tableCell}>
+                <Coins size={10} color="#eab308" /> 300
+              </Text>
+              <Text style={styles.tableCell}>
+                <Coins size={10} color="#eab308" /> 300
+              </Text>
+              <Text style={styles.tableCell}>Free</Text>
+            </View>
+            <View style={[styles.tableRow, { borderBottomWidth: 0 }]}>
+              <View style={styles.tableCellLabelContainer}>
+                <Flame size={14} color={colors.textSecondary} />
+                <Text style={styles.tableCellLabel}>Karma Bonus</Text>
+              </View>
+              <Text style={styles.tableCell}>-</Text>
+              <Text style={styles.tableCell}>
+                <Flame size={12} color="#ef4444" /> +100
+              </Text>
+              <Text style={styles.tableCell}>
+                <Flame size={12} color="#ef4444" /> +200
+              </Text>
+            </View>
+          </View>
+        </View>
+
         <Text style={[styles.sectionTitle, { marginTop: 16 }]}>TOKEN PACKS</Text>
 
         <View style={styles.tokenPacksRow}>
-          <TouchableOpacity 
-            style={[styles.tokenCard, (isPending || rcInitializing) && { opacity: 0.6 }]} 
-            onPress={() => handleBuyTokens(50, 'tokens_50')} 
+          <TouchableOpacity
+            style={[styles.tokenCard, (isPending || rcInitializing) && { opacity: 0.6 }]}
+            onPress={() => handleBuyTokens(50, 'tokens_50')}
             disabled={isPending || rcInitializing}
           >
-            <Text style={styles.tokenValue}>50</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+              <Coins size={18} color="#eab308" />
+              <Text style={styles.tokenValue}>50</Text>
+            </View>
             <Text style={styles.tokenLabel}>tokens</Text>
             <Text style={styles.tokenPrice}>{rcInitializing ? '...' : '$1.99'}</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity 
-            style={[styles.tokenCard, styles.tokenCardBest, (isPending || rcInitializing) && { opacity: 0.6 }]} 
-            onPress={() => handleBuyTokens(200, 'tokens_200')} 
+          <TouchableOpacity
+            style={[styles.tokenCard, styles.tokenCardBest, (isPending || rcInitializing) && { opacity: 0.6 }]}
+            onPress={() => handleBuyTokens(200, 'tokens_200')}
             disabled={isPending || rcInitializing}
           >
             <Text style={styles.bestValueText}>BEST VALUE</Text>
-            <Text style={styles.tokenValue}>200</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+              <Coins size={18} color="#eab308" />
+              <Text style={styles.tokenValue}>200</Text>
+            </View>
             <Text style={styles.tokenLabel}>tokens</Text>
             <Text style={styles.tokenPrice}>{rcInitializing ? '...' : '$4.99'}</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity 
-            style={[styles.tokenCard, (isPending || rcInitializing) && { opacity: 0.6 }]} 
-            onPress={() => handleBuyTokens(500, 'tokens_500')} 
+          <TouchableOpacity
+            style={[styles.tokenCard, (isPending || rcInitializing) && { opacity: 0.6 }]}
+            onPress={() => handleBuyTokens(500, 'tokens_500')}
             disabled={isPending || rcInitializing}
           >
-            <Text style={styles.tokenValue}>500</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+              <Coins size={18} color="#eab308" />
+              <Text style={styles.tokenValue}>500</Text>
+            </View>
             <Text style={styles.tokenLabel}>tokens</Text>
             <Text style={styles.tokenPrice}>{rcInitializing ? '...' : '$9.99'}</Text>
           </TouchableOpacity>
@@ -588,5 +699,60 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontSize: 14,
     fontWeight: '800',
     color: colors.text,
+  },
+  tableContainer: {
+    marginTop: 8,
+    marginBottom: 24,
+  },
+  table: {
+    backgroundColor: colors.card,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    overflow: 'hidden',
+  },
+  tableRow: {
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  tableHeader: {
+    backgroundColor: colors.background,
+  },
+  tableCell: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 4,
+    fontSize: 11,
+    color: colors.text,
+    textAlign: 'center',
+    justifyContent: 'center',
+  },
+  tableCellHeader: {
+    fontWeight: '800',
+    color: colors.textSecondary,
+    fontSize: 12,
+  },
+  tableCellCentered: {
+    flex: 1,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 2,
+  },
+  tableCellLabelContainer: {
+    flex: 1.5,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingLeft: 12,
+    gap: 6,
+    justifyContent: 'flex-start',
+  },
+  tableCellLabel: {
+    textAlign: 'left',
+    fontWeight: '600',
+    color: colors.textSecondary,
+    fontSize: 11,
   },
 });

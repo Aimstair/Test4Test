@@ -1,13 +1,16 @@
 import { Stack, DarkTheme, DefaultTheme, ThemeProvider } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import * as SplashScreen from 'expo-splash-screen';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AlertProvider } from '../components/AlertProvider';
 import { ThemeProvider as CustomThemeProvider, useTheme } from '../theme/ThemeContext';
 import { registerPushToken, requestNotificationPermissions } from '../utils/notifications';
+import { checkForInAppUpdates } from '../utils/inAppUpdates';
 import { useAuth } from '../api/auth';
 import OfflineBanner from '../components/OfflineBanner';
+import EventModal from '../components/EventModal';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -32,6 +35,11 @@ function AppNavigator() {
       registerPushToken(session.user.id);
     }
   }, [session?.user?.id]);
+
+  // Check for Google Play In-App Updates when the app launches
+  useEffect(() => {
+    checkForInAppUpdates();
+  }, []);
 
   return (
     <ThemeProvider value={isDark ? DarkTheme : DefaultTheme}>

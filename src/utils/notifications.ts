@@ -1,5 +1,6 @@
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
+import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import { supabase } from '../lib/supabase';
 
@@ -41,15 +42,36 @@ export const registerPushToken = async (userId: string) => {
     if (!Device.isDevice) return; // Push notifications don't work on simulators
 
     const granted = await requestNotificationPermissions();
-    if (!granted) return;
+    if (!granted) {
+      console.log('Push notification permissions not granted.');
+      return;
+    }
 
-    const tokenData = await Notifications.getExpoPushTokenAsync({
-      projectId: process.env.EXPO_PUBLIC_PROJECT_ID,
-    });
+    // Resolve the Expo project ID from app.json > extra.eas.projectId (standard approach)
+    const projectId =
+      Constants.expoConfig?.extra?.eas?.projectId ??
+      process.env.EXPO_PUBLIC_PROJECT_ID;
+
+    if (!projectId) {
+      console.warn('registerPushToken: No projectId found. Push tokens will not be registered.');
+      return;
+    }
+
+    const tokenData = await Notifications.getExpoPushTokenAsync({ projectId });
     const token = tokenData.data;
 
+    if (!token) {
+      console.warn('registerPushToken: getExpoPushTokenAsync returned no token.');
+      return;
+    }
+
     // Save to database so server-side functions can send pushes
-    await supabase.from('users').update({ push_token: token }).eq('id', userId);
+    const { error } = await supabase.from('users').update({ push_token: token }).eq('id', userId);
+    if (error) {
+      console.warn('registerPushToken: Failed to save token to DB:', error.message);
+    } else {
+      console.log('Push token registered successfully.');
+    }
   } catch (e: any) {
     if (e.message?.includes('FirebaseApp is not initialized')) {
       console.log('Skipping push token registration: google-services.json not configured in app.json.');
@@ -59,7 +81,7 @@ export const registerPushToken = async (userId: string) => {
   }
 };
 
-export type NotificationType = 'new_tester' | 'new_review' | 'app_expiry' | 'app_full' | 'daily_reports' | 'subscription' | 'new_proof' | 'check_in' | 'testing_finished';
+export type NotificationType = 'new_tester' | 'new_review' | 'app_expiry' | 'app_full' | 'daily_reports' | 'subscription' | 'new_proof' | 'check_in' | 'testing_finished' | 'support' | 'report';
 
 const PUSH_FUNCTION_URL = process.env.EXPO_PUBLIC_PUSH_FUNCTION_URL || 'https://dykilozjkathhythocff.supabase.co/functions/v1/send-push';
 const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
@@ -138,8 +160,36 @@ export const sendNotification = async (
         trigger: null,
       });
     }
-  } catch (e) {
-    console.error('Error sending notification:', e);
+    console.log(`Notification sent to ${targetUserId}`);
+  } catch (err: any) {
+    console.error('Failed to send notification:', err.message);
+  }
+};
+
+/**
+ * Sends a notification to all admin users.
+ */
+export const notifyAdmins = async (
+  title: string,
+  body: string,
+  type: NotificationType,
+  currentUserId?: string
+) => {
+  try {
+    const { data: admins, error } = await supabase
+      .from('users')
+      .select('id')
+      .eq('role', 'admin');
+
+    if (error) throw error;
+    if (!admins || admins.length === 0) return;
+
+    // Send notification to each admin sequentially (or Promise.all)
+    await Promise.all(
+      admins.map(admin => sendNotification(admin.id, title, body, type, currentUserId))
+    );
+  } catch (err: any) {
+    console.error('Failed to notify admins:', err.message);
   }
 };
 

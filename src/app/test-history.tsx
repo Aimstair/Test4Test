@@ -22,7 +22,12 @@ export default function TestHistory() {
   // All contracts that have all days resolved (done/missed/rejected)
   const isContractCompleted = (c: any) => {
     if (!c.days || c.days.length === 0) return false;
-    return c.days.every((d: any) => ['done', 'missed', 'rejected'].includes(d.status));
+    if (c.days.some((d: any) => d.status === 'rejected')) return false;
+
+    const todayStr = new Date().toISOString().split('T')[0];
+    return c.days.every((d: any) => 
+      ['done', 'verified', 'missed'].includes(d.status) || d.date < todayStr
+    );
   };
 
   const historyContracts = rawContracts
@@ -30,9 +35,12 @@ export default function TestHistory() {
     .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
   const getContractStats = (contract: any) => {
+    const todayStr = new Date().toISOString().split('T')[0];
     const days = contract.days || [];
     const doneCount = days.filter((d: any) => d.status === 'done').length;
-    const missedCount = days.filter((d: any) => d.status === 'missed').length;
+    const missedCount = days.filter((d: any) => 
+      d.status === 'missed' || (d.status !== 'done' && d.status !== 'verified' && d.date < todayStr)
+    ).length;
     const totalDays = days.length;
     const completionRate = totalDays > 0 ? Math.round((doneCount / totalDays) * 100) : 0;
     return { doneCount, missedCount, totalDays, completionRate };

@@ -7,7 +7,7 @@ import * as Localization from 'expo-localization';
 import { useRouter } from 'expo-router';
 import { Camera, Check, Coins, Flame, Gift } from 'lucide-react-native';
 import { useState } from 'react';
-import { Linking, Image as RNImage, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Linking, Image as RNImage, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../api/auth';
 import { supabase } from '../lib/supabase';
@@ -175,9 +175,11 @@ export default function Onboarding() {
       } else if (error.code === 'IN_PROGRESS') {
         // operation (e.g. sign in) is in progress already
       } else if (error.code === 'PLAY_SERVICES_NOT_AVAILABLE') {
-        alert('Play services are not available or outdated.');
+        setTimeout(() => Alert.alert('Error', 'Play services are not available or outdated.'), 100);
+        console.error('Play Services Error:', error);
       } else {
-        alert('Auth Error: ' + error.message);
+        setTimeout(() => Alert.alert('Auth Error', error.message), 100);
+        console.error('Google Sign In Error:', error);
       }
     } finally {
       setLoadingAuth(false);

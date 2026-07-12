@@ -8,6 +8,7 @@ import TokenGuideModal from './TokenGuideModal';
 import KarmaGuideModal from './KarmaGuideModal';
 import MembershipGuideModal from './MembershipGuideModal';
 import { useTheme } from '../theme/ThemeContext';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface AppHeaderProps {
   onLayoutPills?: (e: LayoutChangeEvent) => void;
@@ -24,6 +25,7 @@ export default function AppHeader({ onLayoutPills }: AppHeaderProps = {}) {
   const [showTokenGuide, setShowTokenGuide] = useState(false);
   const [showKarmaGuide, setShowKarmaGuide] = useState(false);
   const [showMembershipGuide, setShowMembershipGuide] = useState(false);
+  const insets = useSafeAreaInsets();
 
   const tokens = userProfile?.tokens ?? 0;
   const karma = userProfile?.karma ?? 0;
@@ -37,7 +39,7 @@ export default function AppHeader({ onLayoutPills }: AppHeaderProps = {}) {
   if (pathname.includes('/profile')) title = 'ME';
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <View style={[styles.safeArea, { paddingTop: Math.max(insets.top, StatusBar.currentHeight || 0) }]}>
       <View style={styles.container}>
         <View style={styles.left} onLayout={onLayoutPills}>
           <TouchableOpacity
@@ -92,14 +94,13 @@ export default function AppHeader({ onLayoutPills }: AppHeaderProps = {}) {
         onClose={() => setShowMembershipGuide(false)}
         userTier={userProfile?.subscription_tier}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
 const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   safeArea: {
     backgroundColor: isDark ? 'rgba(10, 10, 10, 0.8)' : 'rgba(255, 255, 255, 0.8)',
-    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },

@@ -1,7 +1,7 @@
 import { useRouter } from 'expo-router';
 import { ChevronLeft, Search, ShieldCheck, User } from 'lucide-react-native';
 import { useState } from 'react';
-import { ActivityIndicator, Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, FlatList } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../api/auth';
 import { useAdminUsers } from '../../api/queries';
@@ -46,8 +46,42 @@ export default function AdminUsers() {
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: Math.max(insets.bottom + 20, 60) }]}>
-        {isLoading ? (
+      <View style={styles.listHeader}>
+        <Text style={styles.countText}>
+          {isLoading ? 'Loading...' : `${filteredUsers?.length || 0} user${filteredUsers?.length !== 1 ? 's' : ''} found`}
+        </Text>
+      </View>
+      <FlatList
+        data={isLoading ? [] : filteredUsers}
+        keyExtractor={(item: any) => item.id}
+        contentContainerStyle={[styles.content, { paddingBottom: Math.max(insets.bottom + 20, 60) }]}
+        renderItem={({ item: user }: any) => (
+          <TouchableOpacity
+            style={styles.userCard}
+            onPress={() => router.push(`/admin/user/${user.id}`)}
+          >
+            {user.avatar_url ? (
+              <Image source={{ uri: user.avatar_url }} style={styles.avatarImage} />
+            ) : (
+              <View style={styles.avatar}>
+                {user.role === 'admin' ? <ShieldCheck size={24} color="#fff" /> : <User size={24} color="#fff" />}
+              </View>
+            )}
+            <View style={styles.userInfo}>
+              <View style={styles.nameRow}>
+                <Text style={styles.userName}>{user.name || 'Unknown'}</Text>
+                {user.status === 'banned' && (
+                  <View style={styles.bannedBadge}>
+                    <Text style={styles.bannedText}>BANNED</Text>
+                  </View>
+                )}
+              </View>
+              <Text style={styles.userSub}>Karma: {user.karma} • Tokens: {user.tokens}</Text>
+              <Text style={styles.userSub}>Tier: {user.subscription_tier} • Role: {user.role}</Text>
+            </View>
+          </TouchableOpacity>
+        )}
+        ListEmptyComponent={() => isLoading ? (
           <View style={{ marginTop: 20 }}>
             {[1, 2, 3, 4, 5].map((i) => (
               <View key={i} style={styles.userCard}>
@@ -60,41 +94,13 @@ export default function AdminUsers() {
               </View>
             ))}
           </View>
-        ) : filteredUsers && filteredUsers.length > 0 ? (
-          filteredUsers.map(user => (
-            <TouchableOpacity
-              key={user.id}
-              style={styles.userCard}
-              onPress={() => router.push(`/admin/user/${user.id}`)}
-            >
-              {user.avatar_url ? (
-                <Image source={{ uri: user.avatar_url }} style={styles.avatarImage} />
-              ) : (
-                <View style={styles.avatar}>
-                  {user.role === 'admin' ? <ShieldCheck size={24} color="#fff" /> : <User size={24} color="#fff" />}
-                </View>
-              )}
-              <View style={styles.userInfo}>
-                <View style={styles.nameRow}>
-                  <Text style={styles.userName}>{user.name || 'Unknown'}</Text>
-                  {user.status === 'banned' && (
-                    <View style={styles.bannedBadge}>
-                      <Text style={styles.bannedText}>BANNED</Text>
-                    </View>
-                  )}
-                </View>
-                <Text style={styles.userSub}>Karma: {user.karma} • Tokens: {user.tokens}</Text>
-                <Text style={styles.userSub}>Tier: {user.subscription_tier} • Role: {user.role}</Text>
-              </View>
-            </TouchableOpacity>
-          ))
         ) : (
           <View style={styles.emptyState}>
             <User size={48} color={colors.border} />
             <Text style={styles.emptyTitle}>No users found</Text>
           </View>
         )}
-      </ScrollView>
+      />
     </View>
   );
 }
@@ -144,6 +150,15 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     height: 40,
     marginLeft: 8,
     color: colors.text,
+  },
+  listHeader: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+  },
+  countText: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    fontWeight: '600',
   },
   content: {
     padding: 16,

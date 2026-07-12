@@ -52,16 +52,8 @@ Deno.serve(async (_req) => {
       .in('status', ['active']);
       
     if (cError) throw cError;
-    
-    // DEBUG DUMP: Let's fetch ALL proof days to see their statuses
-    const { data: allProofDays } = await supabase.from('contract_days').select('status, proof_image_url').not('proof_image_url', 'is', null);
-    
     if (!contracts || contracts.length === 0) {
-      return new Response(JSON.stringify({ 
-        message: "No active contracts for auto-approve developers", 
-        approved: 0,
-        debug_global_proofs: allProofDays
-      }), { headers: { "Content-Type": "application/json" } });
+      return new Response(JSON.stringify({ message: "No active contracts for auto-approve developers", approved: 0 }), { headers: { "Content-Type": "application/json" } });
     }
     
     const contractIds = contracts.map((c: any) => c.id);
@@ -81,11 +73,7 @@ Deno.serve(async (_req) => {
     if (pdError) throw pdError;
     
     if (!pendingDays || pendingDays.length === 0) {
-      return new Response(JSON.stringify({ 
-        message: "No pending proofs to auto-approve", 
-        approved: 0,
-        debug_global_proofs: allProofDays
-      }), { headers: { "Content-Type": "application/json" } });
+      return new Response(JSON.stringify({ message: "No pending proofs to auto-approve", approved: 0 }), { headers: { "Content-Type": "application/json" } });
     }
     
     let approvedCount = 0;
@@ -152,13 +140,7 @@ Deno.serve(async (_req) => {
       approvedCount++;
     }
     
-    if (approvedCount === 0) {
-      return new Response(JSON.stringify({ 
-        message: "No pending proofs to auto-approve", 
-        approved: 0,
-        debug_global_proofs: allProofDays
-      }), { headers: { "Content-Type": "application/json" } });
-    }
+
     
     return new Response(JSON.stringify({ message: "Success", approved: approvedCount }), { headers: { "Content-Type": "application/json" } });
 

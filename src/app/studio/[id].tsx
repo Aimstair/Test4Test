@@ -87,8 +87,8 @@ export default function StudioDetail() {
   }
 
   let activeAppLimit = 1;
-  if (userProfile?.subscription_tier === 'Pro') activeAppLimit = 5;
-  if (userProfile?.subscription_tier === 'Pro+') activeAppLimit = 10;
+  if (userProfile?.subscription_tier === 'Pro') activeAppLimit = 3;
+  if (userProfile?.subscription_tier === 'Pro+') activeAppLimit = 5;
 
   const myApps = catalog?.filter((a: any) => a.owner_id === session?.user?.id) || [];
   const activeAppsCount = myApps.filter((a: any) => a.active !== false).length;
@@ -427,7 +427,7 @@ export default function StudioDetail() {
         <Text style={styles.sectionTitle}>ACTIVE TESTERS ({activeTesters})</Text>
         <View style={styles.reviewsContainer}>
           {metrics?.filter((c: any) => c.status === 'active').map((contract: any) => {
-            const progressDays = contract.contract_days?.filter((d: any) => d.status === 'verified' || d.status === 'done' || d.status === 'pending').length || 0;
+            const progressDays = contract.contract_days?.filter((d: any) => d.status !== 'future').length || 0;
             return (
               <View key={contract.id} style={styles.testerCard}>
                 {contract.tester?.avatar_url ? (
@@ -441,7 +441,7 @@ export default function StudioDetail() {
                 )}
                 <View style={{ flex: 1, marginLeft: 12 }}>
                   <Text style={styles.reviewName}>{contract.tester?.name || 'Tester'}</Text>
-                  <Text style={styles.reviewDate}>Day {progressDays} of {app.app_type === 'Production' ? '7' : '14'} completed</Text>
+                  <Text style={styles.reviewDate}>Day {progressDays} of {contract.contract_days?.length || 14} completed</Text>
                   {contract.rate_proof_url && (
                     <TouchableOpacity onPress={() => Linking.openURL(contract.rate_proof_url)}>
                       <Text style={{ color: colors.primary, fontSize: 12, marginTop: 4, fontWeight: '600' }}>View Rating Screenshot</Text>

@@ -1,12 +1,16 @@
 import { Check, ChevronLeft, ChevronRight, Flag, Image as ImageIcon, X, Flame } from 'lucide-react-native';
 import { useRef, useState } from 'react';
 import { Animated, Image, Modal, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import * as StoreReview from 'expo-store-review';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../../api/auth';
 import { useApprovedProofsCount, useProofQueue, useReviewProof, useUserProfile, useUpdateAutoApprove } from '../../api/queries';
 import EmptyState from '../../components/EmptyState';
 import { useTheme } from '../../theme/ThemeContext';
 import Skeleton from '../../components/Skeleton';
 import AppHeader from '../../components/AppHeader';
+import EventFloatingIcon from '../../components/EventFloatingIcon';
+import EventModal from '../../components/EventModal';
 
 export default function Verify() {
   const { colors, isDark } = useTheme();
@@ -25,6 +29,7 @@ export default function Verify() {
   const appsList = Array.from(new Set(proofQueue.map((p: any) => p.contract?.app?.name))).filter(Boolean) as string[];
   const carouselItems = ["All Listings", ...appsList];
   const [currentAppIndex, setCurrentAppIndex] = useState(0);
+  const [showEventModal, setShowEventModal] = useState(false);
 
   const selectedApp = carouselItems[currentAppIndex] || "All Listings";
   const displayedQueue = selectedApp === "All Listings"
@@ -52,11 +57,27 @@ export default function Verify() {
     ]).start(() => setShowToast(false));
   };
 
+  const checkAndPromptReview = async () => {
+    try {
+      const lastPrompt = await AsyncStorage.getItem('last_review_prompt_date');
+      const today = new Date().toDateString();
+      if (lastPrompt !== today) {
+        if (await StoreReview.hasAction()) {
+          await StoreReview.requestReview();
+          await AsyncStorage.setItem('last_review_prompt_date', today);
+        }
+      }
+    } catch (e) {
+      console.log('StoreReview error:', e);
+    }
+  };
+
   const handleReview = (id: string, status: 'approved' | 'rejected', reason?: string) => {
     reviewProof({ id, status, developerId: session?.user?.id, reason }, {
       onSuccess: () => {
         if (status === 'approved') {
           displayToast('+0.5 Karma earned! ⭐ Proof approved.', 'success');
+          checkAndPromptReview();
         } else {
           displayToast(`Proof rejected${reason ? ` (${reason})` : ''}`, 'success');
         }
@@ -268,7 +289,7 @@ export default function Verify() {
           <View style={styles.exifRow}>
             <View style={styles.exifPill}>
               <Text style={styles.exifLabel}>DAY</Text>
-              <Text style={styles.exifValue}>{proof.day_number}/14</Text>
+              <Text style={styles.exifValue}>{proof.day_number}/{proof.contract?.contract_days?.length || 14}</Text>
             </View>
             <View style={styles.exifPill}>
               <Text style={styles.exifLabel}>TIME</Text>
@@ -369,6 +390,9 @@ export default function Verify() {
           <Text style={styles.toastText}>{toastMessage}</Text>
         </Animated.View>
       )}
+
+      <EventFloatingIcon onPress={() => setShowEventModal(true)} />
+      <EventModal visible={showEventModal} onClose={() => setShowEventModal(false)} />
     </View>
   );
 }

@@ -1,15 +1,17 @@
 import { useRouter } from 'expo-router';
 import { Coins, Flame, Globe, Search, Star } from 'lucide-react-native';
 import { useState } from 'react';
-import { RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, FlatList } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../api/auth';
-import { useCatalog, useNotifications, useUserProfile } from '../../api/queries';
+import { useCatalog, useNotifications, useUserProfile, useAdminSettings } from '../../api/queries';
 import AppHeader from '../../components/AppHeader';
 import AppIcon from '../../components/AppIcon';
 import EmptyState from '../../components/EmptyState';
 import Skeleton from '../../components/Skeleton';
 import { useTheme } from '../../theme/ThemeContext';
+import EventModal from '../../components/EventModal';
+import EventFloatingIcon from '../../components/EventFloatingIcon';
 
 export default function Catalog() {
   const router = useRouter();
@@ -20,8 +22,12 @@ export default function Catalog() {
   const { data: userProfile, isLoading: loadingProfile, refetch: refetchProfile } = useUserProfile(session?.user?.id);
   const user = userProfile || { tokens: 0, karma: 0 };
   const { data: catalogData, isLoading: loadingCatalog, refetch: refetchCatalog } = useCatalog();
+  const { data: adminSettings } = useAdminSettings();
+  const defaultBounty = adminSettings?.default_bounty ?? 10;
+  const boostBonus = adminSettings?.boost_bounty_bonus ?? 5;
 
   const [filter, setFilter] = useState<'Boosted' | 'All'>('Boosted');
+  const [showEventModal, setShowEventModal] = useState(false);
 
   const { data: notifications } = useNotifications(session?.user?.id);
   const unreadCount = (notifications || []).filter((n: any) => !n.is_read).length;
@@ -100,46 +106,45 @@ export default function Catalog() {
   return (
     <View style={styles.container}>
       <AppHeader />
-      <ScrollView
+      <FlatList
         style={styles.container}
         contentContainerStyle={styles.content}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        data={catalog}
+        keyExtractor={(item) => item.id}
+        ListHeaderComponent={
+          <>
+            <View style={styles.searchBar}>
+              <Search size={20} color={colors.textSecondary} style={styles.searchIcon} />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search apps"
+                placeholderTextColor={colors.placeholder}
+              />
+            </View>
+
+            <View style={styles.segmentControl}>
+              <TouchableOpacity
+                style={[styles.segmentBtn, filter === 'Boosted' && styles.segmentBtnActive]}
+                onPress={() => setFilter('Boosted')}
+              >
+                <Text style={[styles.segmentBtnText, filter === 'Boosted' && styles.segmentBtnTextActive]}>Boosted 🔥</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.segmentBtn, filter === 'All' && styles.segmentBtnActive]}
+                onPress={() => setFilter('All')}
+              >
+                <Text style={[styles.segmentBtnText, filter === 'All' && styles.segmentBtnTextActive]}>All Apps</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.filterRow}>
+              <Text style={styles.filterText}>{filter === 'Boosted' ? 'PROMOTED APPS' : 'SORTED BY DEVELOPER KARMA'}</Text>
+              <Text style={styles.filterText}>{catalog.length} APPS</Text>
+            </View>
+          </>
         }
-      >
-
-        {/* <Text style={styles.headerTitle}>Catalog</Text> */}
-
-        <View style={styles.searchBar}>
-          <Search size={20} color={colors.textSecondary} style={styles.searchIcon} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search apps"
-            placeholderTextColor={colors.placeholder}
-          />
-        </View>
-
-        <View style={styles.segmentControl}>
-          <TouchableOpacity
-            style={[styles.segmentBtn, filter === 'Boosted' && styles.segmentBtnActive]}
-            onPress={() => setFilter('Boosted')}
-          >
-            <Text style={[styles.segmentBtnText, filter === 'Boosted' && styles.segmentBtnTextActive]}>Boosted 🔥</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.segmentBtn, filter === 'All' && styles.segmentBtnActive]}
-            onPress={() => setFilter('All')}
-          >
-            <Text style={[styles.segmentBtnText, filter === 'All' && styles.segmentBtnTextActive]}>All Apps</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.filterRow}>
-          <Text style={styles.filterText}>{filter === 'Boosted' ? 'PROMOTED APPS' : 'SORTED BY DEVELOPER KARMA'}</Text>
-          <Text style={styles.filterText}>{catalog.length} APPS</Text>
-        </View>
-
-        {catalog.length === 0 && (
+        ListEmptyComponent={
           <EmptyState
             icon={<Search size={48} color="#A0A0AB" strokeWidth={1.5} />}
             title="No Apps Available"
@@ -152,9 +157,8 @@ export default function Catalog() {
             buttonText="Go to Build"
             onPressButton={() => router.push('/(tabs)/studio')}
           />
-        )}
-
-        {catalog.map((app) => {
+        }
+        renderItem={({ item: app }) => {
           const isNew = new Date(app.created_at).getTime() > new Date().getTime() - 24 * 60 * 60 * 1000;
           const avgRating = app.reviews?.length
             ? (app.reviews.reduce((acc: number, r: any) => acc + r.rating, 0) / app.reviews.length).toFixed(1)
@@ -162,7 +166,6 @@ export default function Catalog() {
 
           return (
             <TouchableOpacity
-              key={app.id}
               style={styles.appCard}
               onPress={() => router.push(`/catalog/${app.id}`)}
             >
@@ -193,7 +196,7 @@ export default function Catalog() {
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                       <Coins size={16} color="#eab308" />
                       <Text style={{ fontSize: 16, fontWeight: '800', color: colors.text }}>
-                        +{app.boost_ends_at && new Date(app.boost_ends_at) > new Date() ? app.bounty + 10 : app.bounty}
+                        +{app.boost_ends_at && new Date(app.boost_ends_at) > new Date() ? defaultBounty + boostBonus : defaultBounty}
                       </Text>
                     </View>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
@@ -216,9 +219,11 @@ export default function Catalog() {
               </View>
             </TouchableOpacity>
           );
-        })}
+        }}
+      />
 
-      </ScrollView>
+      <EventFloatingIcon onPress={() => setShowEventModal(true)} />
+      <EventModal visible={showEventModal} onClose={() => setShowEventModal(false)} />
     </View>
   );
 }

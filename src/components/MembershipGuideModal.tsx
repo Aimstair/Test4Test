@@ -79,7 +79,7 @@ export default function MembershipGuideModal({ visible, onClose, userTier = 'Bas
               <View style={styles.stepTextContainer}>
                 <Text style={styles.stepTitle}>Publishing Limits</Text>
                 <Text style={styles.stepDesc}>
-                  {isProPlus ? "Publish up to 10 apps to the catalog simultaneously." : isPro ? "Publish up to 5 apps to the catalog." : "Publish 1 app to the catalog at a time."}
+                  {isProPlus ? "Publish up to 5 apps to the catalog simultaneously." : isPro ? "Publish up to 3 apps to the catalog." : "Publish 1 app to the catalog at a time."}
                 </Text>
               </View>
             </View>

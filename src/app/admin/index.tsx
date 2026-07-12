@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ChevronLeft, ChevronRight, Users, MessageSquare, AlertTriangle, Activity, Store, ShieldAlert } from 'lucide-react-native';
+import { ChevronLeft, ChevronRight, Users, MessageSquare, AlertTriangle, Activity, Store, ShieldAlert, Gift } from 'lucide-react-native';
 import { useTheme } from '../../theme/ThemeContext';
 
 export default function AdminDashboard() {
@@ -89,6 +89,32 @@ export default function AdminDashboard() {
             <View style={styles.rowTextCol}>
               <Text style={styles.rowTitle}>Listings & Apps</Text>
               <Text style={styles.rowSub}>Review, edit, ban, and remove apps</Text>
+            </View>
+            <ChevronRight size={16} color="#C7C7CC" />
+          </TouchableOpacity>
+
+          <View style={styles.divider} />
+
+          <TouchableOpacity style={styles.rowCenter} onPress={() => router.push('/admin/rewards')}>
+            <View style={[styles.iconContainer, { backgroundColor: 'rgba(255, 204, 0, 0.1)' }]}>
+              <Activity size={20} color="#FFCC00" />
+            </View>
+            <View style={styles.rowTextCol}>
+              <Text style={styles.rowTitle}>Economy & Rewards</Text>
+              <Text style={styles.rowSub}>Manage app bounties and global bonuses</Text>
+            </View>
+            <ChevronRight size={16} color="#C7C7CC" />
+          </TouchableOpacity>
+
+          <View style={styles.divider} />
+
+          <TouchableOpacity style={styles.rowCenter} onPress={() => router.push('/admin/events')}>
+            <View style={[styles.iconContainer, { backgroundColor: 'rgba(255, 45, 85, 0.1)' }]}>
+              <Gift size={20} color="#FF2D55" />
+            </View>
+            <View style={styles.rowTextCol}>
+              <Text style={styles.rowTitle}>Events & Giveaways</Text>
+              <Text style={styles.rowSub}>Control active events and view claim logs</Text>
             </View>
             <ChevronRight size={16} color="#C7C7CC" />
           </TouchableOpacity>

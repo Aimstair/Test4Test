@@ -13,6 +13,8 @@ import { useCustomAlert } from '../../components/AlertProvider';
 import AppHeader from '../../components/AppHeader';
 import AppIcon from '../../components/AppIcon';
 import EmptyState from '../../components/EmptyState';
+import EventFloatingIcon from '../../components/EventFloatingIcon';
+import EventModal from '../../components/EventModal';
 import OnboardingTooltip, { LayoutRect } from '../../components/OnboardingTooltip';
 import Skeleton from '../../components/Skeleton';
 import UtcCountdown from '../../components/UtcCountdown';
@@ -27,6 +29,24 @@ export default function Dashboard() {
   const styles = getStyles(colors, isDark);
 
   const [isFocused, setIsFocused] = useState(false);
+  const [showEventModal, setShowEventModal] = useState(false);
+
+  useEffect(() => {
+    const checkEventModal = async () => {
+      try {
+        const lastSeenStr = await AsyncStorage.getItem('@last_seen_event_modal');
+        const todayStr = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+
+        if (lastSeenStr !== todayStr) {
+          setShowEventModal(true);
+          await AsyncStorage.setItem('@last_seen_event_modal', todayStr);
+        }
+      } catch (err) {
+        // fail silently
+      }
+    };
+    checkEventModal();
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
@@ -44,7 +64,12 @@ export default function Dashboard() {
   // Split into active and completed (all days resolved)
   const isContractCompleted = (c: any) => {
     if (!c.days || c.days.length === 0) return false;
-    return c.days.every((d: any) => ['done', 'missed', 'rejected'].includes(d.status));
+    if (c.days.some((d: any) => d.status === 'rejected')) return false;
+    
+    const todayStr = new Date().toISOString().split('T')[0];
+    return c.days.every((d: any) => 
+      ['done', 'verified', 'missed'].includes(d.status) || d.date < todayStr
+    );
   };
 
   const contracts = rawContracts
@@ -348,7 +373,7 @@ export default function Dashboard() {
             return 'future';
           };
 
-          const numDays = app.app_type === 'Production' ? 7 : 14;
+          const numDays = contract.days.length;
 
           return (
             <View key={contract.id} style={styles.contractCard}>
@@ -358,7 +383,7 @@ export default function Dashboard() {
                 </View>
                 <View>
                   <Text style={styles.appName}>{app.name}</Text>
-                  <Text style={styles.appSub}>DAY {currentDay?.day_number || 1}/{numDays} • +1 KARMA PER CHECK-IN</Text>
+                  <Text style={styles.appSub}>DAY {currentDay?.day_number || 1}/{numDays}</Text>
                 </View>
               </TouchableOpacity>
 
@@ -505,6 +530,9 @@ export default function Dashboard() {
           </>
         )}
       </ScrollView>
+
+      <EventFloatingIcon onPress={() => setShowEventModal(true)} />
+      <EventModal visible={showEventModal} onClose={() => setShowEventModal(false)} />
     </View>
   );
 }

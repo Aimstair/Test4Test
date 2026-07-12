@@ -11,6 +11,8 @@ import AppIcon from '../../components/AppIcon';
 import EmptyState from '../../components/EmptyState';
 import Skeleton from '../../components/Skeleton';
 import { useTheme } from '../../theme/ThemeContext';
+import EventFloatingIcon from '../../components/EventFloatingIcon';
+import EventModal from '../../components/EventModal';
 
 export default function Studio() {
   const router = useRouter();
@@ -27,6 +29,7 @@ export default function Studio() {
   const [refreshing, setRefreshing] = useState(false);
   const [showWelcome, setShowWelcome] = useState(false);
   const [showTokenModal, setShowTokenModal] = useState(false);
+  const [showEventModal, setShowEventModal] = useState(false);
 
   useEffect(() => {
     AsyncStorage.getItem('studio_first_visit').then(visited => {
@@ -76,8 +79,8 @@ export default function Studio() {
     });
 
   let activeAppLimit = 1;
-  if (userProfile?.subscription_tier === 'Pro') activeAppLimit = 5;
-  if (userProfile?.subscription_tier === 'Pro+') activeAppLimit = 10;
+  if (userProfile?.subscription_tier === 'Pro') activeAppLimit = 3;
+  if (userProfile?.subscription_tier === 'Pro+') activeAppLimit = 5;
 
   const activeAppsCount = myApps.filter((app: any) => app.active !== false && !checkIsExpired(app)).length;
 
@@ -124,22 +127,43 @@ export default function Studio() {
             <Text style={styles.splitValue}>{activeAppsCount}{activeAppLimit !== Infinity ? `/${activeAppLimit}` : ''}</Text>
             <Text style={styles.splitLabel}>LIVE APPS</Text>
           </View>
-          <TouchableOpacity
-            style={[styles.newAppBtn, activeAppsCount >= activeAppLimit && { opacity: 0.5 }]}
-            onPress={() => {
-              if (activeAppsCount < activeAppLimit) {
+          {activeAppsCount >= activeAppLimit ? (
+            <TouchableOpacity
+              style={[styles.newAppBtn, { backgroundColor: '#AF52DE' }]}
+              onPress={() => {
+                if (userProfile?.subscription_tier === 'Pro+') {
+                  showAlert('Limit Reached', 'You have reached the maximum active apps limit.');
+                } else {
+                  router.push('/pricing');
+                }
+              }}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.newAppPlus}>↑</Text>
+              <Text style={styles.newAppLabel}>
+                {userProfile?.subscription_tier === 'Pro+' 
+                  ? 'LIMIT REACHED' 
+                  : userProfile?.subscription_tier === 'Pro' 
+                    ? 'UPGRADE PRO+' 
+                    : 'UPGRADE PRO'}
+              </Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={styles.newAppBtn}
+              onPress={() => {
                 if (userProfile?.subscription_tier === 'Basic' && (userProfile?.tokens || 0) < 50) {
                   setShowTokenModal(true);
                 } else {
                   router.push('/studio/new');
                 }
-              }
-            }}
-            activeOpacity={activeAppsCount >= activeAppLimit ? 1 : 0.7}
-          >
-            <Text style={styles.newAppPlus}>+</Text>
-            <Text style={styles.newAppLabel}>NEW APP</Text>
-          </TouchableOpacity>
+              }}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.newAppPlus}>+</Text>
+              <Text style={styles.newAppLabel}>NEW APP</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         <Text style={styles.sectionTitle}>YOUR APPS</Text>
@@ -312,6 +336,9 @@ export default function Studio() {
         </Modal>
 
       </ScrollView>
+
+      <EventFloatingIcon onPress={() => setShowEventModal(true)} />
+      <EventModal visible={showEventModal} onClose={() => setShowEventModal(false)} />
     </View>
   );
 }

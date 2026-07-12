@@ -7,7 +7,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, AppState, Linking, Modal, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../api/auth';
-import { useCatalog, useCreateReport, useReports, useStartContract, useUserProfile } from '../../api/queries';
+import { useCatalog, useCreateReport, useReports, useStartContract, useUserProfile, useAdminSettings } from '../../api/queries';
 import { useCustomAlert } from '../../components/AlertProvider';
 import AppIcon from '../../components/AppIcon';
 import Skeleton from '../../components/Skeleton';
@@ -72,8 +72,12 @@ export default function Setup() {
   const app = catalog?.find((a: any) => a.id === id);
   const isProduction = app?.app_type === 'Production';
 
+  const { data: adminSettings } = useAdminSettings();
+  const defaultBounty = adminSettings?.default_bounty ?? 10;
+  const boostBonus = adminSettings?.boost_bounty_bonus ?? 5;
+
   const isBoosted = app?.boost_ends_at && new Date(app.boost_ends_at) > new Date();
-  const signupBonus = (app?.bounty || 0) + (isBoosted ? 10 : 0);
+  const signupBonus = defaultBounty + (isBoosted ? boostBonus : 0);
 
   const STEP_INSTALL_CONFIRM = isProduction ? null : 2;
   const STEP_RATE = isProduction ? 2 : null;

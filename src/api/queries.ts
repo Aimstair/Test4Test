@@ -1,6 +1,198 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
-import { sendNotification } from '../utils/notifications';
+import { sendNotification, notifyAdmins } from '../utils/notifications';
+
+export const useAdminSettings = () => {
+  return useQuery({
+    queryKey: ['admin_settings'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('admin_settings')
+        .select('*')
+        .eq('id', 1)
+        .single();
+      
+      if (error && error.code !== 'PGRST116') { // PGRST116 is row not found
+        console.warn('Failed to fetch admin_settings:', error.message);
+      }
+      
+      // Return defaults if table is empty or missing
+      return data || { default_bounty: 10, boost_bounty_bonus: 5 };
+    },
+  });
+};
+
+export const useUpdateAdminSettings = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ default_bounty, boost_bounty_bonus }: { default_bounty: number, boost_bounty_bonus: number }) => {
+      const { data, error } = await supabase
+        .from('admin_settings')
+        .upsert({ id: 1, default_bounty, boost_bounty_bonus })
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin_settings'] });
+    },
+  });
+};
+
+// Global Events
+export const useActiveEvent = () => {
+  return useQuery({
+    queryKey: ['global_events'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('global_events')
+        .select('*')
+        .eq('id', 1)
+        .single();
+        
+      if (error && error.code !== 'PGRST116') throw error;
+      return data;
+    },
+  });
+};
+
+export const useUpdateActiveEvent = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (updates: any) => {
+      const { data, error } = await supabase
+        .from('global_events')
+        .update(updates)
+        .eq('id', 1)
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['global_events'] });
+    },
+  });
+};
+
+export const useEventClaims = () => {
+  return useQuery({
+    queryKey: ['event_claims'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('event_claims')
+        .select(`
+          id,
+          milestone_id,
+          reward_title,
+          created_at,
+          user_id,
+          users (
+            name,
+            email,
+            id
+          )
+        `)
+        .order('created_at', { ascending: false })
+        .limit(100);
+        
+      if (error) throw error;
+      return data;
+    },
+  });
+};
+
+export const useEventProgress = (userId?: string, eventStartDate?: string) => {
+  return useQuery({
+    queryKey: ['event_progress', userId, eventStartDate],
+    queryFn: async () => {
+      if (!userId || !eventStartDate) return { count: 0 };
+      
+      const { count, error } = await supabase
+        .from('contracts')
+        .select('id', { count: 'exact', head: true })
+        .eq('tester_id', userId)
+        .gte('created_at', eventStartDate);
+        
+      if (error) throw error;
+      return { count: count || 0 };
+    },
+    enabled: !!userId && !!eventStartDate,
+  });
+};
+
+export const useClaimEventReward = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ userId, milestoneId, rewardType, rewardAmount, rewardTitle, rewardTier }: { userId: string, milestoneId: string, rewardType: 'tokens'|'membership', rewardAmount: number, rewardTitle: string, rewardTier?: string }) => {
+      const { data: user, error: fetchError } = await supabase
+        .from('users')
+        .select('claimed_event_milestones, tokens, subscription_expires_at, subscription_tier')
+        .eq('id', userId)
+        .single();
+        
+      if (fetchError) throw fetchError;
+      
+      const claimedList = Array.isArray(user.claimed_event_milestones) ? user.claimed_event_milestones : [];
+      if (claimedList.includes(milestoneId)) {
+        throw new Error('You have already claimed this milestone!');
+      }
+      
+      const updates: any = {
+        claimed_event_milestones: [...claimedList, milestoneId]
+      };
+      
+      if (rewardType === 'tokens') {
+        updates.tokens = (user.tokens || 0) + rewardAmount;
+      } else if (rewardType === 'membership') {
+        const now = new Date();
+        const currentEnd = user.subscription_expires_at ? new Date(user.subscription_expires_at) : now;
+        
+        // If currently subscribed, extend it. If not, start exactly from now.
+        const baseDate = currentEnd > now ? currentEnd : now;
+        baseDate.setDate(baseDate.getDate() + rewardAmount);
+        updates.subscription_expires_at = baseDate.toISOString();
+
+        
+        const tierToGrant = rewardTier || 'Pro';
+        const currentTier = user.subscription_tier || 'Basic';
+        if (currentTier === 'Basic' || (currentTier === 'Pro' && tierToGrant === 'Pro+')) {
+          updates.subscription_tier = tierToGrant;
+        }
+      }
+      
+      const { error: updateError } = await supabase
+        .from('users')
+        .update(updates)
+        .eq('id', userId);
+        
+      if (updateError) throw updateError;
+      
+      if (rewardType === 'tokens') {
+         await supabase.from('transactions').insert([{
+            user_id: userId,
+            type: 'token_gain',
+            currency: 'tokens',
+            amount: rewardAmount,
+            description: `Event Reward: ${milestoneId}`
+          }]);
+      }
+      
+      await supabase.from('event_claims').insert([{
+        user_id: userId,
+        milestone_id: milestoneId,
+        reward_title: rewardTitle
+      }]);
+      
+      return { success: true };
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['user', variables.userId] });
+      queryClient.invalidateQueries({ queryKey: ['event_claims'] });
+    },
+  });
+};
 
 
 export const useUserProfile = (userId?: string) => {
@@ -286,8 +478,9 @@ export const useProofQueue = (userId?: string) => {
         .select(`
           *,
           contract:contracts!inner(
-            tester:users(name),
-            app:apps!inner(name, owner_id)
+            tester:users(name, avatar_url),
+            app:apps!inner(name, owner_id, app_type),
+            contract_days(id)
           )
         `)
         .eq('status', 'verified')
@@ -430,6 +623,9 @@ export const useDisputeProof = () => {
         .select()
         .single();
       if (error) throw error;
+      
+      notifyAdmins('New Dispute', 'A tester appealed a rejected proof.', 'new_proof', proofId);
+
       return data;
     },
     onSuccess: () => {
@@ -817,8 +1013,13 @@ export const useStartContract = () => {
         throw new Error('You already tested this app in the current listing cycle.');
       }
 
+      // Fetch dynamic admin settings for rewards
+      const { data: adminSettings } = await supabase.from('admin_settings').select('*').eq('id', 1).single();
+      const defaultBounty = adminSettings?.default_bounty ?? 10;
+      const boostBonus = adminSettings?.boost_bounty_bonus ?? 5;
+
       const isBoosted = appData?.boost_ends_at && new Date(appData.boost_ends_at) > new Date();
-      const bonusBounty = isBoosted ? 10 : 0;
+      const bonusBounty = isBoosted ? boostBonus : 0;
 
       // Create contract, storing the listing_id for future scope checks
       const { data: contract, error } = await supabase
@@ -830,7 +1031,7 @@ export const useStartContract = () => {
       if (error) throw error;
 
       // Payout Tokens instantly on "Claim"
-      const totalReward = (appData?.bounty || 0) + bonusBounty;
+      const totalReward = defaultBounty + bonusBounty;
       if (totalReward > 0) {
         const { data: testerData } = await supabase.from('users').select('tokens').eq('id', testerId).single();
         if (testerData) {
@@ -1102,6 +1303,14 @@ export const useCreateReport = () => {
 
       const { data, error } = await supabase.from('reports').insert([reportData]).select().single();
       if (error) throw error;
+
+      // Fetch the app to find owner
+      const { data: appData } = await supabase.from('apps').select('owner_id, name').eq('id', reportData.app_id).single();
+      if (appData) {
+        sendNotification(appData.owner_id, 'App Reported', `Your app "${appData.name}" has been reported by a user.`, 'report', data.id);
+        notifyAdmins('App Reported', `The app "${appData.name}" has been reported and requires moderation.`, 'report', data.id);
+      }
+
       return data;
     },
     onSuccess: (_, variables) => {
@@ -1151,9 +1360,10 @@ export const useCreateTicket = () => {
       if (error) throw error;
       return data;
     },
-    onSuccess: (_, variables) => {
+    onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['support_tickets', variables.user_id] });
       queryClient.invalidateQueries({ queryKey: ['support_tickets'] });
+      notifyAdmins('New Support Ticket', `A user opened a new ticket: ${variables.title}`, 'support', data.id);
     },
   });
 };
@@ -1164,6 +1374,17 @@ export const useReplyToTicket = () => {
     mutationFn: async (replyData: { ticket_id: string, sender_id: string, message: string }) => {
       const { data, error } = await supabase.from('ticket_replies').insert([replyData]).select().single();
       if (error) throw error;
+
+      // Fetch ticket to determine who should be notified
+      const { data: ticket } = await supabase.from('support_tickets').select('user_id').eq('id', replyData.ticket_id).single();
+      if (ticket) {
+        if (replyData.sender_id === ticket.user_id) {
+          notifyAdmins('Ticket Reply', 'A user replied to their support ticket.', 'support', replyData.ticket_id);
+        } else {
+          sendNotification(ticket.user_id, 'Ticket Update', 'An admin replied to your support ticket.', 'support', replyData.ticket_id);
+        }
+      }
+
       return data;
     },
     onSuccess: (_, variables) => {

@@ -56,7 +56,7 @@ export default function NewApp() {
   // Dynamic cost calculation
   let displayTesterLimit = appType === 'Production' ? 24 : 12;
   let displayAppBounty = 5;
-  let tokenCost = 50;
+  let tokenCost = 80;
   if (tier === 'Pro') { displayTesterLimit = appType === 'Production' ? 50 : 25; tokenCost = 150; displayAppBounty = 10; }
   if (tier === 'Pro+') { displayTesterLimit = appType === 'Production' ? 100 : 50; tokenCost = 300; displayAppBounty = 20; }
   if (subscriptionTier === 'Pro+' || (subscriptionTier === 'Pro' && (tier === 'Basic' || tier === 'Pro'))) {
@@ -65,8 +65,8 @@ export default function NewApp() {
 
   // Active apps limits
   let activeAppLimit = 1;
-  if (subscriptionTier === 'Pro') activeAppLimit = 5;
-  if (subscriptionTier === 'Pro+') activeAppLimit = 10;
+  if (subscriptionTier === 'Pro') activeAppLimit = 3;
+  if (subscriptionTier === 'Pro+') activeAppLimit = 5;
 
   const activeAppsCount = catalogData?.filter((app: any) => app.owner_id === session?.user?.id && app.active !== false).length || 0;
 
@@ -362,7 +362,7 @@ export default function NewApp() {
             <Text style={[styles.tierSub, tier === 'Basic' && styles.tierTextActive]}>12 TESTERS</Text>
             <Text style={[styles.tierSub, tier === 'Basic' && styles.tierTextActive]}>{appType === 'Production' ? '7 DAYS' : subscriptionTier === 'Pro+' ? 'UNLIMITED' : '14 DAYS'}</Text>
             <Text style={[styles.tierSub2, tier === 'Basic' && styles.tierTextActive, subscriptionTier === 'Pro+' || subscriptionTier === 'Pro' ? styles.freeText : {}]}>
-              {subscriptionTier === 'Pro+' || subscriptionTier === 'Pro' ? 'Free' : '50 tokens'}
+              {subscriptionTier === 'Pro+' || subscriptionTier === 'Pro' ? 'Free' : '80 tokens'}
             </Text>
           </TouchableOpacity>
 

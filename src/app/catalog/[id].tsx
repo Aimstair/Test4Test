@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Image, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../api/auth';
-import { useCatalog, useContracts, useCreateReview, useReports, useReviews, useUserProfile } from '../../api/queries';
+import { useCatalog, useContracts, useCreateReview, useReports, useReviews, useUserProfile, useAdminSettings } from '../../api/queries';
 import { useCustomAlert } from '../../components/AlertProvider';
 import AppIcon from '../../components/AppIcon';
 import Skeleton from '../../components/Skeleton';
@@ -36,6 +36,10 @@ export default function AppDetail() {
   const insets = useSafeAreaInsets();
   const { colors, isDark } = useTheme();
   const styles = getStyles(colors, isDark);
+
+  const { data: adminSettings } = useAdminSettings();
+  const defaultBounty = adminSettings?.default_bounty ?? 10;
+  const boostBonus = adminSettings?.boost_bounty_bonus ?? 5;
 
   const [rating, setRating] = useState(5);
   const [content, setContent] = useState('');
@@ -364,7 +368,7 @@ export default function AppDetail() {
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                 <Coins size={16} color="#eab308" />
                 <Text style={{ fontSize: 16, fontWeight: '800', color: '#FFFFFF' }}>
-                  +{app.boost_ends_at && new Date(app.boost_ends_at) > new Date() ? app.bounty + 10 : app.bounty}
+                  +{app.boost_ends_at && new Date(app.boost_ends_at) > new Date() ? defaultBounty + boostBonus : defaultBounty}
                 </Text>
               </View>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>

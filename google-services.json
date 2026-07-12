@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "282819835041",
+    "project_id": "test4test-34b25",
+    "storage_bucket": "test4test-34b25.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:282819835041:android:32825ba3a068318df9ece0",
+        "android_client_info": {
+          "package_name": "com.aimteralabs.test4test"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDj-6RPePuYrFe2HI176volM3Ho4I4zzdY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
