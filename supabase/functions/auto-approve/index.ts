@@ -10,9 +10,45 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
+async function sendPushNotification(pushToken: string, title: string, body: string, type: string): Promise<void> {
+  try {
+    if (!pushToken || (!pushToken.startsWith('ExponentPushToken[') && !pushToken.startsWith('ExpoPushToken['))) {
+      return;
+    }
+    const res = await fetch('https://exp.host/--/api/v2/push/send', {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json',
+        'Accept-Encoding': 'gzip, deflate',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        to: pushToken,
+        sound: 'default',
+        title,
+        body,
+        data: { type },
+        priority: 'high',
+        channelId: 'default',
+      }),
+    });
+    if (!res.ok) {
+      const result = await res.text();
+      console.error('[auto-approve] push failed:', res.status, result);
+    }
+  } catch (e: any) {
+    console.error('[auto-approve] push error:', e.message);
+  }
+}
+
 Deno.serve(async (_req) => {
   try {
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    });
 
     // 1. Get developers with auto_approve_enabled
     const { data: developers, error: devError } = await supabase
@@ -90,9 +126,9 @@ Deno.serve(async (_req) => {
       // Update status to done
       await supabase.from('contract_days').update({ status: 'done' }).eq('id', day.id);
       
-      // Fetch Karma for both
-      const { data: devUser } = await supabase.from('users').select('karma').eq('id', developerId).single();
-      const { data: testerUser } = await supabase.from('users').select('karma').eq('id', testerId).single();
+      // Fetch Karma + push_token for both
+      const { data: devUser } = await supabase.from('users').select('karma, push_token').eq('id', developerId).single();
+      const { data: testerUser } = await supabase.from('users').select('karma, push_token').eq('id', testerId).single();
       
       // Reward Developer (+0.5)
       if (devUser) {
@@ -118,33 +154,56 @@ Deno.serve(async (_req) => {
         }]);
       }
       
-      // Insert silent notification (no push to avoid waking them up)
+      // Insert notification + send push
+      const proofApprovedBody = '⭐ Proof auto-approved! You earned +1 Karma.';
       await supabase.from('notifications').insert([{
         user_id: testerId,
         title: 'Proof Auto-Approved',
-        body: '⭐ Proof auto-approved! You earned +1 Karma.',
+        body: proofApprovedBody,
         type: 'new_proof'
       }]);
       
-      // If final day
-      const numDays = app?.app_type === 'Production' ? 7 : 14;
-      if (day.day_number === numDays) {
+      if (testerUser?.push_token) {
+        await sendPushNotification(
+          testerUser.push_token,
+          'Proof Auto-Approved',
+          proofApprovedBody,
+          'new_proof'
+        );
+      }
+      
+      // If final day — get total days from contract_days count
+      const { count: totalDays } = await supabase
+        .from('contract_days')
+        .select('id', { count: 'exact', head: true })
+        .eq('contract_id', day.contract_id);
+      
+      if (day.day_number === (totalDays || 14)) {
+        const contractCompleteBody = `🎉 You successfully tested ${app?.name || 'the app'}. Claim your tokens now!`;
         await supabase.from('notifications').insert([{
           user_id: testerId,
           title: 'Contract Complete',
-          body: `🎉 You successfully tested ${app?.name || 'the app'}. Claim your tokens now!`,
+          body: contractCompleteBody,
           type: 'testing_finished'
         }]);
+        
+        if (testerUser?.push_token) {
+          await sendPushNotification(
+            testerUser.push_token,
+            'Contract Complete',
+            contractCompleteBody,
+            'testing_finished'
+          );
+        }
       }
       
       approvedCount++;
     }
     
-
-    
     return new Response(JSON.stringify({ message: "Success", approved: approvedCount }), { headers: { "Content-Type": "application/json" } });
 
   } catch (err: any) {
+    console.error('[auto-approve] fatal error:', err.message);
     return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: { "Content-Type": "application/json" } });
   }
 });

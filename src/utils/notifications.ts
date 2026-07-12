@@ -123,34 +123,58 @@ export const sendNotification = async (
     }]);
 
     // 3a. Server-side push via Edge Function or direct Expo Push API
+    console.log(`[PUSH DEBUG] Target: ${targetUserId}, Token: ${user.push_token ? user.push_token.substring(0, 30) + '...' : 'NONE'}, Type: ${type}`);
+    console.log(`[PUSH DEBUG] PUSH_FUNCTION_URL: ${PUSH_FUNCTION_URL || 'NOT SET'}`);
+    console.log(`[PUSH DEBUG] ANON_KEY present: ${SUPABASE_ANON_KEY ? 'YES (' + SUPABASE_ANON_KEY.substring(0, 20) + '...)' : 'EMPTY'}`);
+    
     if (user.push_token) {
-      if (PUSH_FUNCTION_URL) {
-        fetch(PUSH_FUNCTION_URL, {
-          method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
-          },
-          body: JSON.stringify({ push_token: user.push_token, title, body, data: { type } }),
-        }).catch((e) => console.error('Push send error:', e));
-      } else {
-        // Direct Expo Push API fallback for development/MVP
-        fetch('https://exp.host/--/api/v2/push/send', {
-          method: 'POST',
-          headers: {
-            Accept: 'application/json',
-            'Accept-encoding': 'gzip, deflate',
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            to: user.push_token,
-            title: title,
-            body: body,
-            data: { type },
-            sound: 'default'
-          }),
-        }).catch((e) => console.error('Expo Push send error:', e));
+      try {
+        const pushPayload = { push_token: user.push_token, title, body, data: { type } };
+        console.log(`[PUSH DEBUG] Sending push via Edge Function...`);
+        
+        if (PUSH_FUNCTION_URL) {
+          const pushRes = await fetch(PUSH_FUNCTION_URL, {
+            method: 'POST',
+            headers: { 
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+            },
+            body: JSON.stringify(pushPayload),
+          });
+          const pushResult = await pushRes.json().catch(() => null);
+          console.log(`[PUSH DEBUG] Edge Function response: status=${pushRes.status}, body=${JSON.stringify(pushResult)}`);
+          if (!pushRes.ok) {
+            console.error('[PUSH DEBUG] Edge Function FAILED:', pushRes.status, pushResult);
+          }
+        } else {
+          // Direct Expo Push API fallback
+          console.log(`[PUSH DEBUG] No Edge Function URL, using direct Expo Push API...`);
+          const pushRes = await fetch('https://exp.host/--/api/v2/push/send', {
+            method: 'POST',
+            headers: {
+              Accept: 'application/json',
+              'Accept-encoding': 'gzip, deflate',
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              to: user.push_token,
+              title,
+              body,
+              data: { type },
+              sound: 'default'
+            }),
+          });
+          const pushResult = await pushRes.json().catch(() => null);
+          console.log(`[PUSH DEBUG] Expo API response: status=${pushRes.status}, body=${JSON.stringify(pushResult)}`);
+          if (!pushRes.ok) {
+            console.error('[PUSH DEBUG] Expo Push API FAILED:', pushRes.status, pushResult);
+          }
+        }
+      } catch (pushErr: any) {
+        console.error('[PUSH DEBUG] Push notification EXCEPTION:', pushErr.message);
       }
+    } else {
+      console.warn(`[PUSH DEBUG] No push_token for user ${targetUserId}, skipping push.`);
     }
 
     // 3b. Fallback: local immediate notification if sending to self (active device)

@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { GoogleSignin } from '@react-native-google-signin/google-signin';
+import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
 import { decode } from 'base64-arraybuffer';
 import * as Device from 'expo-device';
 import * as ImagePicker from 'expo-image-picker';
@@ -170,11 +170,16 @@ export default function Onboarding() {
         setStep(2);
       }
     } catch (error: any) {
-      if (error.code === 'SIGN_IN_CANCELLED') {
-        // user cancelled the login flow
-      } else if (error.code === 'IN_PROGRESS') {
+      if (
+        error.code === statusCodes.SIGN_IN_CANCELLED || 
+        error.code === 'SIGN_IN_CANCELLED' || 
+        error.code === '12501' ||
+        (error.message && error.message.toLowerCase().includes('cancel'))
+      ) {
+        // user cancelled the login flow, do nothing
+      } else if (error.code === statusCodes.IN_PROGRESS || error.code === 'IN_PROGRESS') {
         // operation (e.g. sign in) is in progress already
-      } else if (error.code === 'PLAY_SERVICES_NOT_AVAILABLE') {
+      } else if (error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE || error.code === 'PLAY_SERVICES_NOT_AVAILABLE') {
         setTimeout(() => Alert.alert('Error', 'Play services are not available or outdated.'), 100);
         console.error('Play Services Error:', error);
       } else {
