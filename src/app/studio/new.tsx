@@ -394,6 +394,16 @@ export default function NewApp() {
         <Text style={styles.label}>GOOGLE PLAY CONSOLE SETUP</Text>
         <View style={styles.checklistCard}>
 
+          <Text style={{ fontSize: 13, color: colors.textSecondary, marginBottom: 12, lineHeight: 18 }}>
+            To quickly add our community of testers, paste the Google Group email below into your Play Console's email list for this track:
+          </Text>
+
+          <RNImage 
+            source={require('../../../assets/images/tester_googlegroup.jpg')} 
+            style={{ width: '100%', height: 160, borderRadius: 8, marginBottom: 16, borderWidth: 1, borderColor: colors.border }}
+            resizeMode="cover"
+          />
+
           <TouchableOpacity style={styles.copyBox} onPress={handleCopyEmail} activeOpacity={0.7}>
             <Text style={styles.copyEmail}>test4test-community@googlegroups.com</Text>
           </TouchableOpacity>

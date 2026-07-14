@@ -28,7 +28,8 @@ export const useUpdateAdminSettings = () => {
     mutationFn: async ({ default_bounty, boost_bounty_bonus }: { default_bounty: number, boost_bounty_bonus: number }) => {
       const { data, error } = await supabase
         .from('admin_settings')
-        .upsert({ id: 1, default_bounty, boost_bounty_bonus })
+        .update({ default_bounty, boost_bounty_bonus })
+        .eq('id', 1)
         .select()
         .single();
       if (error) throw error;
@@ -699,7 +700,7 @@ export const useSubmitFinalSurvey = () => {
     mutationFn: async ({ contractId, dayId, proofUrl, feedback }: { contractId: string, dayId: string, proofUrl?: string, feedback: { rating: number, bugs: string, general: string } }) => {
       // 1. Upload proof for Day 14
       if (proofUrl) {
-        await supabase.from('contract_days').update({ proof_image_url: proofUrl, status: 'pending' }).eq('id', dayId);
+        await supabase.from('contract_days').update({ proof_image_url: proofUrl, status: 'verified' }).eq('id', dayId);
       }
       
       // 2. Save feedback to the contract and mark it completed (Bug 1 Fix)
@@ -774,6 +775,17 @@ export const useCreateApp = () => {
         }
         throw error;
       }
+
+      if (data && data.tier === 'Pro+') {
+        await supabase.functions.invoke('broadcast-push', {
+          body: {
+            title: '⭐ Premium App Alert',
+            body: `${data.name} is looking for testers! Claim your spot now for ${data.bounty} tokens.`,
+            excludeUserId: data.owner_id
+          }
+        }).catch(err => console.error('Failed to send broadcast push', err));
+      }
+
       return data;
     },
     onSuccess: (_, variables) => {
@@ -978,6 +990,15 @@ export const useBoostApp = () => {
         .single();
         
       if (error) throw error;
+
+      await supabase.functions.invoke('broadcast-push', {
+        body: {
+          title: '🔥 Hot Opportunity',
+          body: `${data.name} is looking for testers! Claim your spot now for ${data.bounty + 10} tokens.`,
+          excludeUserId: ownerId
+        }
+      }).catch(err => console.error('Failed to send broadcast push', err));
+
       return data;
     },
     onSuccess: (_, variables) => {
@@ -1029,6 +1050,9 @@ export const useStartContract = () => {
         .single();
       
       if (error) throw error;
+
+      // Automatically dismiss (delete) any open reports for this app since a tester has successfully joined
+      await supabase.from('reports').delete().eq('app_id', appId);
 
       // Payout Tokens instantly on "Claim"
       const totalReward = defaultBounty + bonusBounty;
@@ -1307,7 +1331,16 @@ export const useCreateReport = () => {
       // Fetch the app to find owner
       const { data: appData } = await supabase.from('apps').select('owner_id, name').eq('id', reportData.app_id).single();
       if (appData) {
-        sendNotification(appData.owner_id, 'App Reported', `Your app "${appData.name}" has been reported by a user.`, 'report', data.id);
+        let notificationBody = `Your app "${appData.name}" has been reported by a user.`;
+        if (reportData.title === 'Item not Found') {
+          notificationBody = `Your app "${appData.name}" was reported as 'Item not Found'. Please ensure you have added the Google Group email to your tester list.`;
+        } else if (reportData.title === "Isn't Available in my Country") {
+          notificationBody = `Your app "${appData.name}" was reported as 'Isn't Available in my Country'. Please make the app available to all countries in the Play Console.`;
+        } else if (reportData.title === "Paid App") {
+          notificationBody = `Your app "${appData.name}" was reported as a 'Paid App'. Please provide a discount code or make the app free for testers.`;
+        }
+
+        sendNotification(appData.owner_id, 'App Reported', notificationBody, 'report', data.id);
         notifyAdmins('App Reported', `The app "${appData.name}" has been reported and requires moderation.`, 'report', data.id);
       }
 

@@ -1,10 +1,11 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
-import { BookOpen, Rocket, Sparkles, X, Coins } from 'lucide-react-native';
+import { BookOpen, Rocket, Sparkles, X, Coins, Activity, TrendingUp } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
-import { Modal, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Modal, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View, ActivityIndicator } from 'react-native';
 import { useAuth } from '../../api/auth';
-import { useCatalog, useUserProfile } from '../../api/queries';
+import { useCatalog, useUserProfile, useToggleAppStatus, useBoostApp } from '../../api/queries';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCustomAlert } from '../../components/AlertProvider';
 import AppHeader from '../../components/AppHeader';
 import AppIcon from '../../components/AppIcon';
@@ -30,6 +31,13 @@ export default function Studio() {
   const [showWelcome, setShowWelcome] = useState(false);
   const [showTokenModal, setShowTokenModal] = useState(false);
   const [showEventModal, setShowEventModal] = useState(false);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [selectedBoostApp, setSelectedBoostApp] = useState<any>(null);
+  const [boostDays, setBoostDays] = useState(3);
+
+  const { mutate: toggleStatus, isPending: isToggling } = useToggleAppStatus();
+  const { mutate: boostApp, isPending: isBoosting } = useBoostApp();
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     AsyncStorage.getItem('studio_first_visit').then(visited => {
@@ -83,6 +91,52 @@ export default function Studio() {
   if (userProfile?.subscription_tier === 'Pro+') activeAppLimit = 5;
 
   const activeAppsCount = myApps.filter((app: any) => app.active !== false && !checkIsExpired(app)).length;
+
+  const handleActivate = (app: any) => {
+    if (app.active === false && app.banned === true) {
+      showAlert('App Banned', 'This app has been banned for violating our terms of service and cannot be activated.');
+      return;
+    }
+
+    if (activeAppsCount >= activeAppLimit) {
+      if (userProfile?.subscription_tier === 'Pro+') {
+        showAlert('Limit Reached', `Your Pro+ tier allows a maximum of ${activeAppLimit} active apps.`);
+      } else {
+        setShowUpgradeModal(true);
+      }
+      return;
+    }
+
+    toggleStatus({ appId: app.id, active: true }, {
+      onError: (err: any) => showAlert('Error', err.message)
+    });
+  };
+
+  const handleBoost = () => {
+    if (!selectedBoostApp) return;
+    
+    const cost = boostDays * 20;
+    if ((userProfile?.tokens || 0) < cost) {
+      showAlert('Insufficient Tokens', `You need ${cost} tokens to boost your app for ${boostDays} days.`);
+      return;
+    }
+
+    boostApp({
+      userId: session?.user?.id,
+      appId: selectedBoostApp.id,
+      days: boostDays,
+      tokenCost: cost
+    }, {
+      onSuccess: () => {
+        setSelectedBoostApp(null);
+        showAlert('Success', `App listing boosted for ${boostDays} days!`);
+        onRefresh();
+      },
+      onError: (err: any) => {
+        showAlert('Error', err.message);
+      }
+    });
+  };
 
   if (loadingProfile || loadingCatalog) {
     return (
@@ -248,8 +302,28 @@ export default function Studio() {
                 </View>
               </View>
 
-              <TouchableOpacity style={styles.exportBtn} onPress={() => showAlert('Coming Soon', 'This feature is currently under development and will be available in a future update.')}>
-                <Text style={styles.exportBtnText}>EXPORT 14-DAY REPORT</Text>
+              <TouchableOpacity
+                style={[
+                  styles.exportBtn,
+                  { backgroundColor: app.active !== false ? '#FF9500' : colors.primary, borderColor: app.active !== false ? '#FF9500' : colors.primary }
+                ]}
+                onPress={() => {
+                  if (app.active !== false) {
+                    setBoostDays(3);
+                    setSelectedBoostApp(app);
+                  } else {
+                    handleActivate(app);
+                  }
+                }}
+                disabled={isToggling && app.active === false}
+              >
+                {isToggling && app.active === false ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <Text style={[styles.exportBtnText, { color: '#fff' }]}>
+                    {app.active !== false ? 'BOOST LISTING' : 'ACTIVATE APP'}
+                  </Text>
+                )}
               </TouchableOpacity>
             </TouchableOpacity>
           )
@@ -335,6 +409,94 @@ export default function Studio() {
           </View>
         </Modal>
 
+        {/* Boost Modal */}
+        <Modal visible={!!selectedBoostApp} transparent animationType="fade" onRequestClose={() => setSelectedBoostApp(null)}>
+          <View style={styles.modalOverlay}>
+            <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={() => setSelectedBoostApp(null)} />
+            <View style={[styles.modalCard, { alignItems: 'stretch' }]}>
+              <TouchableOpacity style={styles.modalClose} onPress={() => setSelectedBoostApp(null)}>
+                <X size={20} color={colors.textSecondary} />
+              </TouchableOpacity>
+
+              <View style={[styles.modalIconCircle, { backgroundColor: 'rgba(255, 149, 0, 0.1)', alignSelf: 'center', marginTop: 12 }]}>
+                <Activity size={32} color="#FF9500" />
+              </View>
+
+              <Text style={[styles.modalTitle, { textAlign: 'center' }]}>Boost Listing</Text>
+              <Text style={[styles.modalDesc, { textAlign: 'center', marginBottom: 24 }]}>
+                Boosting your app pins it to the top of the Catalog with a Promoted badge, instantly getting you testers.
+              </Text>
+
+              <View style={{ width: '100%', backgroundColor: colors.background, borderRadius: 12, padding: 16, marginBottom: 24 }}>
+                <Text style={{ color: colors.textSecondary, fontSize: 12, fontWeight: '800', marginBottom: 8, textAlign: 'center' }}>DURATION (DAYS)</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16 }}>
+                  <TouchableOpacity
+                    style={{ backgroundColor: colors.card, width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', opacity: boostDays <= 1 ? 0.5 : 1 }}
+                    onPress={() => setBoostDays(Math.max(1, boostDays - 1))}
+                    disabled={boostDays <= 1}
+                  >
+                    <Text style={{ color: colors.text, fontSize: 24, fontWeight: 'bold' }}>-</Text>
+                  </TouchableOpacity>
+                  <Text style={{ fontSize: 32, fontWeight: 'bold', color: colors.text }}>{boostDays}</Text>
+                  <TouchableOpacity
+                    style={{ backgroundColor: colors.card, width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', opacity: boostDays >= 30 ? 0.5 : 1 }}
+                    onPress={() => {
+                      const maxDays = 30; // Simply capping at 30 for studio.tsx to avoid complex app expiry calculation here
+                      if (boostDays >= maxDays) return;
+                      setBoostDays(boostDays + 1);
+                    }}
+                  >
+                    <Text style={{ color: colors.text, fontSize: 24, fontWeight: 'bold' }}>+</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%', marginBottom: 24 }}>
+                <Text style={{ color: colors.textSecondary, fontSize: 14, fontWeight: '600' }}>Cost (20 tokens/day)</Text>
+                <Text style={{ color: '#FF9500', fontSize: 18, fontWeight: '900' }}>{boostDays * 20} TOKENS</Text>
+              </View>
+
+              <TouchableOpacity
+                style={[styles.modalBtnPrimary, { backgroundColor: '#FF9500' }]}
+                onPress={handleBoost}
+                disabled={isBoosting}
+              >
+                {isBoosting ? <ActivityIndicator color="#fff" /> : <Text style={styles.modalBtnPrimaryText}>CONFIRM BOOST</Text>}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+
+        {/* Upgrade Modal */}
+        <Modal visible={showUpgradeModal} transparent animationType="fade" onRequestClose={() => setShowUpgradeModal(false)}>
+          <View style={styles.modalOverlay}>
+            <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={() => setShowUpgradeModal(false)} />
+            <View style={[styles.modalCard, { alignItems: 'stretch' }]}>
+              <TouchableOpacity style={styles.modalClose} onPress={() => setShowUpgradeModal(false)}>
+                <X size={20} color={colors.textSecondary} />
+              </TouchableOpacity>
+
+              <View style={[styles.modalIconCircle, { backgroundColor: 'rgba(255, 149, 0, 0.1)', alignSelf: 'center', marginTop: 12 }]}>
+                <TrendingUp size={32} color="#FF9500" />
+              </View>
+
+              <Text style={[styles.modalTitle, { textAlign: 'center' }]}>Upgrade Membership</Text>
+              <Text style={[styles.modalDesc, { textAlign: 'center', marginBottom: 32 }]}>
+                You've reached the maximum number of active apps allowed on your current tier. Upgrade to Pro or Pro+ to run multiple app tests simultaneously.
+              </Text>
+
+              <TouchableOpacity
+                style={[styles.modalBtnPrimary, { backgroundColor: colors.primary }]}
+                onPress={() => {
+                  setShowUpgradeModal(false);
+                  router.push('/pricing');
+                }}
+              >
+                <Text style={styles.modalBtnPrimaryText}>VIEW PLANS</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
       </ScrollView>
 
       <EventFloatingIcon onPress={() => setShowEventModal(true)} />

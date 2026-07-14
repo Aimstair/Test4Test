@@ -139,7 +139,10 @@ export default function Catalog() {
             </View>
 
             <View style={styles.filterRow}>
-              <Text style={styles.filterText}>{filter === 'Boosted' ? 'PROMOTED APPS' : 'SORTED BY DEVELOPER KARMA'}</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Text style={styles.filterText}>{filter === 'Boosted' ? 'PROMOTED APPS' : 'SORTED BY '}</Text>
+                {filter !== 'Boosted' && <Flame size={14} color={colors.textSecondary} style={{ marginLeft: 2, marginBottom: 2 }} />}
+              </View>
               <Text style={styles.filterText}>{catalog.length} APPS</Text>
             </View>
           </>
@@ -175,15 +178,15 @@ export default function Catalog() {
 
               <View style={styles.appInfo}>
                 <View style={styles.appTitleRow}>
-                  <Text style={styles.appName}>{app.name}</Text>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Text style={[styles.appName, { flexShrink: 1, marginRight: 8 }]} numberOfLines={1}>{app.name}</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 0 }}>
                     {app.boost_ends_at && new Date(app.boost_ends_at) > new Date() && (
-                      <View style={{ backgroundColor: 'rgba(255, 149, 0, 0.1)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, marginLeft: 6 }}>
+                      <View style={{ backgroundColor: 'rgba(255, 149, 0, 0.1)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
                         <Text style={{ fontSize: 9, fontWeight: '800', color: '#FF9500' }}>🔥</Text>
                       </View>
                     )}
                     {app.app_type === 'Production' && (
-                      <View style={{ backgroundColor: 'rgba(52, 199, 89, 0.1)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, marginLeft: 6 }}>
+                      <View style={{ backgroundColor: 'rgba(52, 199, 89, 0.1)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
                         <Text style={{ fontSize: 9, fontWeight: '800', color: '#34C759' }}>⭐</Text>
                       </View>
                     )}

@@ -7,7 +7,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, AppState, Linking, Modal, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../api/auth';
-import { useCatalog, useCreateReport, useReports, useStartContract, useUserProfile, useAdminSettings } from '../../api/queries';
+import { useAdminSettings, useCatalog, useCreateReport, useReports, useStartContract } from '../../api/queries';
 import { useCustomAlert } from '../../components/AlertProvider';
 import AppIcon from '../../components/AppIcon';
 import Skeleton from '../../components/Skeleton';
@@ -27,6 +27,7 @@ export default function Setup() {
   const styles = getStyles(colors, isDark);
 
   const [activeStep, setActiveStep] = useState(1);
+  const [hasJoinedGroup, setHasJoinedGroup] = useState(false);
   const [timer, setTimer] = useState(60);
   const [isTimerRunning, setIsTimerRunning] = useState(false);
   const [proofUrl, setProofUrl] = useState<string>('');
@@ -71,6 +72,7 @@ export default function Setup() {
 
   const app = catalog?.find((a: any) => a.id === id);
   const isProduction = app?.app_type === 'Production';
+  const isTesting = app?.app_type === 'Testing';
 
   const { data: adminSettings } = useAdminSettings();
   const defaultBounty = adminSettings?.default_bounty ?? 10;
@@ -79,12 +81,14 @@ export default function Setup() {
   const isBoosted = app?.boost_ends_at && new Date(app.boost_ends_at) > new Date();
   const signupBonus = defaultBounty + (isBoosted ? boostBonus : 0);
 
-  const STEP_INSTALL_CONFIRM = isProduction ? null : 2;
+  const STEP_JOIN_GROUP = isTesting ? 1 : null;
+  const STEP_PLAY_STORE = isTesting ? 2 : 1;
+  const STEP_INSTALL_CONFIRM = isProduction ? null : (isTesting ? 3 : 2);
   const STEP_RATE = isProduction ? 2 : null;
   const STEP_RATE_PROOF = isProduction ? 3 : null;
-  const STEP_LAUNCH = isProduction ? 4 : 3;
-  const STEP_CHECKIN = isProduction ? 5 : 4;
-  const STEP_CLAIM = isProduction ? 6 : 5;
+  const STEP_LAUNCH = isProduction ? 4 : (isTesting ? 4 : 3);
+  const STEP_CHECKIN = isProduction ? 5 : (isTesting ? 5 : 4);
+  const STEP_CLAIM = isProduction ? 6 : (isTesting ? 6 : 5);
 
   const appState = useRef(AppState.currentState);
   const lastBackgroundTimeRef = useRef<number | null>(null);
@@ -157,9 +161,9 @@ export default function Setup() {
             </View>
           </View>
           <View style={{ marginTop: 24 }}>
-             <Skeleton width="100%" height={100} borderRadius={12} style={{ marginBottom: 16 }} />
-             <Skeleton width="100%" height={100} borderRadius={12} style={{ marginBottom: 16 }} />
-             <Skeleton width="100%" height={100} borderRadius={12} />
+            <Skeleton width="100%" height={100} borderRadius={12} style={{ marginBottom: 16 }} />
+            <Skeleton width="100%" height={100} borderRadius={12} style={{ marginBottom: 16 }} />
+            <Skeleton width="100%" height={100} borderRadius={12} />
           </View>
         </ScrollView>
       </View>
@@ -182,7 +186,12 @@ export default function Setup() {
     if (app.internal_test_url) {
       Linking.openURL(app.internal_test_url).catch(() => showAlert('Error', 'Could not open url'));
     }
-    handleStepComplete(1);
+    handleStepComplete(STEP_PLAY_STORE || 1);
+  };
+
+  const handleJoinGroup = () => {
+    Linking.openURL('https://groups.google.com/u/2/g/test4test-community').catch(() => showAlert('Error', 'Could not open url'));
+    setHasJoinedGroup(true);
   };
 
   const handleLaunchApp = () => {
@@ -377,11 +386,53 @@ export default function Setup() {
           </View>
         </View>
 
-        {/* Step 1: Open Play Store */}
+        {/* Step: Join Google Group (Testing Only) */}
+        {isTesting && (
+          <View style={styles.stepCard}>
+            <View style={styles.stepHeader}>
+              <View style={[styles.iconBox, activeStep === STEP_JOIN_GROUP ? styles.iconBoxActive : null]}>
+                {activeStep > (STEP_JOIN_GROUP || 0) ? <CheckCircle size={18} color={colors.success} /> : <Store size={18} color={colors.textSecondary} />}
+              </View>
+              <View style={styles.stepTitleCol}>
+                <Text style={styles.stepTitle}>Join Google Group</Text>
+                <Text style={styles.stepDesc}>Join the community group to be eligible for internal testing.</Text>
+              </View>
+            </View>
+            {hasJoinedGroup && activeStep === STEP_JOIN_GROUP ? (
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                <TouchableOpacity
+                  style={[styles.btn, styles.btnDisabled, { flex: 1 }]}
+                  onPress={handleJoinGroup}
+                >
+                  <Text style={[styles.btnText, styles.btnTextDisabled]}>Join Group</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.btn, styles.btnActive, { flex: 1 }]}
+                  onPress={() => handleStepComplete(STEP_JOIN_GROUP || 1)}
+                >
+                  <Text style={[styles.btnText, styles.btnTextActive]}>I have joined</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <TouchableOpacity
+                style={[styles.btn, activeStep === STEP_JOIN_GROUP ? styles.btnActive : styles.btnDisabled]}
+                disabled={activeStep !== STEP_JOIN_GROUP}
+                onPress={handleJoinGroup}
+              >
+                <Text style={[styles.btnText, activeStep === STEP_JOIN_GROUP ? styles.btnTextActive : styles.btnTextDisabled]}>
+                  {activeStep > (STEP_JOIN_GROUP || 0) ? "Completed" : "Join Google Group"}
+                </Text>
+                {activeStep === STEP_JOIN_GROUP && <ExternalLink size={14} color={colors.background} style={{ marginLeft: 6 }} />}
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+
+        {/* Step: Open Play Store */}
         <View style={styles.stepCard}>
           <View style={styles.stepHeader}>
-            <View style={[styles.iconBox, activeStep === 1 ? styles.iconBoxActive : null]}>
-              {activeStep > 1 ? <CheckCircle size={18} color={colors.success} /> : <Store size={18} color={colors.textSecondary} />}
+            <View style={[styles.iconBox, activeStep === STEP_PLAY_STORE ? styles.iconBoxActive : null]}>
+              {activeStep > (STEP_PLAY_STORE || 1) ? <CheckCircle size={18} color={colors.success} /> : <Store size={18} color={colors.textSecondary} />}
             </View>
             <View style={styles.stepTitleCol}>
               <Text style={styles.stepTitle}>Open Play Store</Text>
@@ -389,18 +440,18 @@ export default function Setup() {
             </View>
           </View>
           <TouchableOpacity
-            style={[styles.btn, activeStep === 1 ? styles.btnActive : styles.btnDisabled]}
-            disabled={activeStep !== 1}
+            style={[styles.btn, activeStep === STEP_PLAY_STORE ? styles.btnActive : styles.btnDisabled]}
+            disabled={activeStep !== STEP_PLAY_STORE}
             onPress={handleOpenPlayStore}
           >
-            <Text style={[styles.btnText, activeStep === 1 ? styles.btnTextActive : styles.btnTextDisabled]}>
-              {activeStep > 1 ? "Completed" : "Open Play Store"}
+            <Text style={[styles.btnText, activeStep === STEP_PLAY_STORE ? styles.btnTextActive : styles.btnTextDisabled]}>
+              {activeStep > (STEP_PLAY_STORE || 1) ? "Completed" : "Open Play Store"}
             </Text>
-            {activeStep === 1 && <ExternalLink size={14} color={colors.background} style={{ marginLeft: 6 }} />}
+            {activeStep === STEP_PLAY_STORE && <ExternalLink size={14} color={colors.background} style={{ marginLeft: 6 }} />}
           </TouchableOpacity>
         </View>
 
-        {/* Step 2: Confirm install (Testing Only) */}
+        {/* Step: Confirm install (Testing Only) */}
         {!isProduction && (
           <View style={styles.stepCard}>
             <View style={styles.stepHeader}>
@@ -412,15 +463,37 @@ export default function Setup() {
                 <Text style={styles.stepDesc}>Continue after the app has finished downloading on your Android device.</Text>
               </View>
             </View>
-            <TouchableOpacity
-              style={[styles.btn, activeStep === STEP_INSTALL_CONFIRM ? styles.btnActive : styles.btnDisabled]}
-              disabled={activeStep !== STEP_INSTALL_CONFIRM}
-              onPress={() => handleStepComplete(STEP_INSTALL_CONFIRM || 2)}
-            >
-              <Text style={[styles.btnText, activeStep === STEP_INSTALL_CONFIRM ? styles.btnTextActive : styles.btnTextDisabled]}>
-                {activeStep > (STEP_INSTALL_CONFIRM || 0) ? "Completed" : "I installed the app"}
-              </Text>
-            </TouchableOpacity>
+            {activeStep === STEP_INSTALL_CONFIRM ? (
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                <TouchableOpacity
+                  style={[styles.btn, styles.btnDisabled, { flex: 1, backgroundColor: colors.danger + '20' }]}
+                  onPress={() => {
+                    setModalView('report');
+                    openFailModal();
+                  }}
+                >
+                  <Text style={[styles.btnText, { color: colors.danger }]}>Can't install</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.btn, styles.btnActive, { flex: 1 }]}
+                  onPress={() => {
+                    handleStepComplete(STEP_INSTALL_CONFIRM || 2);
+                    handleLaunchApp();
+                  }}
+                >
+                  <Text style={[styles.btnText, styles.btnTextActive]}>I installed the app</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <TouchableOpacity
+                style={[styles.btn, styles.btnDisabled]}
+                disabled={true}
+              >
+                <Text style={[styles.btnText, styles.btnTextDisabled]}>
+                  {activeStep > (STEP_INSTALL_CONFIRM || 0) ? "Completed" : "I installed the app"}
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
         )}
 
@@ -624,7 +697,7 @@ export default function Setup() {
                 </Text>
 
                 <View style={{ width: '100%', marginBottom: 12 }}>
-                  {["Broken link", "Can't open", "Isn't available", "Other"].map((reason) => (
+                  {["Item not Found", "Isn't Available in my Country", "Paid App"].map((reason) => (
                     <TouchableOpacity
                       key={reason}
                       style={styles.reportOptionBtn}

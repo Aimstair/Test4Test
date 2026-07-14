@@ -254,7 +254,7 @@ export const setupDailyReminders = async (userId: string) => {
       const { data: myContracts } = await supabase.from('contracts').select('id').in('app_id', appIds);
       if (myContracts && myContracts.length > 0) {
         const contractIds = myContracts.map(c => c.id);
-        const { count } = await supabase.from('contract_days').select('id', { count: 'exact', head: true }).in('contract_id', contractIds).eq('status', 'pending');
+        const { count } = await supabase.from('contract_days').select('id', { count: 'exact', head: true }).in('contract_id', contractIds).eq('status', 'verified');
         pendingProofsCount = count || 0;
       }
       

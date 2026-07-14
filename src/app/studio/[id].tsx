@@ -1,10 +1,10 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Activity, AlertTriangle, ChevronLeft, Download, Info, Power, PowerOff, Star, TrendingUp, Users, X, MessageSquare } from 'lucide-react-native';
+import { Activity, AlertTriangle, ChevronLeft, MessageSquare, Power, PowerOff, Star, TrendingUp, Users, X } from 'lucide-react-native';
 import React from 'react';
-import { ActivityIndicator, Image, Modal, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View, Linking } from 'react-native';
+import { ActivityIndicator, Animated, Dimensions, Image, Modal, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../api/auth';
-import { useAppMetrics, useCatalog, useReviews, useToggleAppStatus, useUserProfile, useBoostApp } from '../../api/queries';
+import { useAppMetrics, useBoostApp, useCatalog, useReviews, useToggleAppStatus, useUserProfile } from '../../api/queries';
 import { useCustomAlert } from '../../components/AlertProvider';
 import AppIcon from '../../components/AppIcon';
 import Skeleton from '../../components/Skeleton';
@@ -18,21 +18,40 @@ export default function StudioDetail() {
   const styles = getStyles(colors, isDark);
 
   const [selectedDay, setSelectedDay] = React.useState<{ date: string, installs: number, checkins: number } | null>(null);
-
   const [boostModalVisible, setBoostModalVisible] = React.useState(false);
+  const [reviewsModalVisible, setReviewsModalVisible] = React.useState(false);
+  const [slideAnim] = React.useState(new Animated.Value(Dimensions.get('window').height));
+
+  React.useEffect(() => {
+    if (reviewsModalVisible) {
+      slideAnim.setValue(Dimensions.get('window').height);
+      Animated.spring(slideAnim, {
+        toValue: 0,
+        useNativeDriver: true,
+        tension: 65,
+        friction: 10,
+      }).start();
+    }
+  }, [reviewsModalVisible]);
+
+  const [testingToggle, setTestingToggle] = React.useState<'active' | 'done'>('active');
+  const [productionToggle, setProductionToggle] = React.useState<'active' | 'done'>('active');
   const [boostDays, setBoostDays] = React.useState(3);
+  const [showUpgradeModal, setShowUpgradeModal] = React.useState(false);
 
   const { session } = useAuth();
   const { showAlert } = useCustomAlert();
-  const { data: userProfile, refetch: refetchProfile } = useUserProfile(session?.user?.id);
-  const { data: catalog, isLoading, refetch: refetchCatalog } = useCatalog();
+  const { data: userProfile, refetch: refetchProfile, isLoading: isLoadingProfile } = useUserProfile(session?.user?.id);
+  const { data: catalog, isLoading: isLoadingCatalog, refetch: refetchCatalog } = useCatalog();
   const { mutate: toggleStatus, isPending: isToggling } = useToggleAppStatus();
   const { mutate: boostApp, isPending: isBoosting } = useBoostApp();
 
   const app = catalog?.find((a: any) => a.id === id);
 
-  const { data: metrics, refetch: refetchMetrics } = useAppMetrics(id as string);
-  const { data: reviews, refetch: refetchReviews } = useReviews(id as string);
+  const { data: metrics, refetch: refetchMetrics, isLoading: isLoadingMetrics } = useAppMetrics(id as string);
+  const { data: reviews, refetch: refetchReviews, isLoading: isLoadingReviews } = useReviews(id as string);
+
+  const isScreenLoading = isLoadingCatalog || isLoadingMetrics || isLoadingReviews || isLoadingProfile;
 
   const [refreshing, setRefreshing] = React.useState(false);
 
@@ -45,7 +64,7 @@ export default function StudioDetail() {
     }
   };
 
-  if (isLoading) {
+  if (isScreenLoading) {
     return (
       <View style={styles.container}>
         <View style={{ paddingTop: Math.max(insets.top + 12, 48), paddingHorizontal: 16, marginBottom: 20 }}>
@@ -63,7 +82,7 @@ export default function StudioDetail() {
               <Skeleton width={80} height={14} borderRadius={4} />
             </View>
           </View>
-          
+
           <Skeleton width={100} height={14} borderRadius={4} style={{ marginTop: 24, marginBottom: 8, marginLeft: 16 }} />
           <View style={styles.metricsGrid}>
             <View style={styles.metricCard}><Skeleton width="100%" height={60} borderRadius={8} /></View>
@@ -94,7 +113,7 @@ export default function StudioDetail() {
   const activeAppsCount = myApps.filter((a: any) => a.active !== false).length;
 
   const isUnlimited = app.app_type !== 'Production' && (userProfile?.subscription_tier === 'Pro' || userProfile?.subscription_tier === 'Pro+');
-  
+
   let effectiveExpiresAt = app.expires_at ? new Date(app.expires_at) : null;
   if (!effectiveExpiresAt && app.created_at) {
     let days = 14;
@@ -129,7 +148,11 @@ export default function StudioDetail() {
     }
 
     if (app.active === false && activeAppsCount >= activeAppLimit) {
-      showAlert('Limit Reached', `Your ${userProfile?.subscription_tier || 'Basic'} tier only allows ${activeAppLimit} active app${activeAppLimit === 1 ? '' : 's'}.`);
+      if (userProfile?.subscription_tier === 'Pro+') {
+        showAlert('Limit Reached', `Your Pro+ tier allows a maximum of ${activeAppLimit} active apps.`);
+      } else {
+        setShowUpgradeModal(true);
+      }
       return;
     }
 
@@ -138,7 +161,19 @@ export default function StudioDetail() {
     });
   };
 
-  const activeTesters = new Set(metrics?.filter((c: any) => c.status === 'active').map((c: any) => c.tester_id)).size || 0;
+  const getContractVirtualStatus = (contract: any) => {
+    if (contract.status === 'done') return 'done';
+    if (contract.status === 'active') {
+      const futureCount = contract.contract_days?.filter((d: any) => d.status === 'future').length;
+      if (futureCount === 0 && contract.contract_days?.length > 0) return 'done';
+      return 'active';
+    }
+    return contract.status;
+  };
+
+  const activeTesters = new Set(metrics?.filter((c: any) => getContractVirtualStatus(c) === 'active').map((c: any) => c.tester_id)).size || 0;
+  const testingContracts = metrics?.filter((c: any) => (c.contract_days?.length || 0) > 7) || [];
+  const productionContracts = metrics?.filter((c: any) => (c.contract_days?.length || 0) <= 7 && (c.contract_days?.length || 0) > 0) || [];
   const failedTesters = metrics?.filter((c: any) => c.status === 'failed').length || 0;
   const churnRate = (metrics?.length || 0) > 0 ? Math.round((failedTesters / metrics!.length) * 100) : 0;
   const testerLimit = app.tester_limit || 10;
@@ -180,7 +215,7 @@ export default function StudioDetail() {
   const chartData = sortedDates.map(dateStr => {
     let checkins = 0;
     let installs = 0;
-    
+
     // Future dates should have empty bars
     if (dateStr <= todayStr) {
       metrics?.forEach((c: any) => {
@@ -216,6 +251,48 @@ export default function StudioDetail() {
   for (let i = chartMax; i >= 0; i -= step) {
     yAxisLabels.push(i);
   }
+
+  const renderTesterCard = (contract: any) => {
+    const progressDays = contract.contract_days?.filter((d: any) => d.status !== 'future').length || 0;
+    return (
+      <View key={contract.id} style={styles.testerCard}>
+        {contract.tester?.avatar_url ? (
+          <Image source={{ uri: contract.tester.avatar_url }} style={styles.avatarImage} />
+        ) : (
+          <View style={styles.reviewAvatar}>
+            <Text style={styles.reviewAvatarText}>
+              {contract.tester?.name?.substring(0, 2).toUpperCase() || 'TE'}
+            </Text>
+          </View>
+        )}
+        <View style={{ flex: 1, marginLeft: 12 }}>
+          <Text style={styles.reviewName}>{contract.tester?.name || 'Tester'}</Text>
+          <Text style={styles.reviewDate}>Day {progressDays} of {contract.contract_days?.length || 14} completed</Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'nowrap', gap: 4, marginTop: 8 }}>
+            {[...(contract.contract_days || [])].sort((a: any, b: any) => a.day_number - b.day_number).map((d: any, idx: number) => {
+              let bgColor = colors.card;
+              if (d.status === 'done' || d.status === 'verified') bgColor = colors.success;
+              else if (d.status === 'missed' || d.status === 'rejected') bgColor = colors.danger;
+              else if (d.status === 'pending') bgColor = colors.warning;
+
+              return (
+                <View
+                  key={idx}
+                  style={{
+                    flex: 1,
+                    height: 14,
+                    borderRadius: 3,
+                    backgroundColor: bgColor,
+                    borderWidth: 1, borderColor: colors.border
+                  }}
+                />
+              );
+            })}
+          </View>
+        </View>
+      </View>
+    );
+  };
 
   return (
     <View style={styles.container}>
@@ -335,33 +412,33 @@ export default function StudioDetail() {
           <View style={{ flexDirection: 'column', gap: 12 }}>
             <View style={{ flexDirection: 'row', gap: 12 }}>
               <TouchableOpacity
-              style={[styles.toggleBtn, app.active !== false ? styles.toggleBtnActive : styles.toggleBtnInactive, { flex: 1 }]}
-              onPress={handleToggleActive}
-              disabled={isToggling}
-            >
-              {isToggling ? (
-                <ActivityIndicator size="small" color={app.active !== false ? colors.danger : colors.primary} />
-              ) : (
-                <>
-                  {app.active !== false ? <PowerOff size={18} color={colors.danger} /> : <Power size={18} color={colors.primary} />}
-                  <Text style={[styles.toggleBtnText, app.active !== false ? { color: colors.danger } : { color: colors.primary }]}>
-                    {app.active !== false ? 'DELIST APP' : 'ACTIVATE APP'}
-                  </Text>
-                </>
-              )}
-            </TouchableOpacity>
+                style={[styles.toggleBtn, app.active !== false ? styles.toggleBtnActive : styles.toggleBtnInactive, { flex: 1 }]}
+                onPress={handleToggleActive}
+                disabled={isToggling}
+              >
+                {isToggling ? (
+                  <ActivityIndicator size="small" color={app.active !== false ? colors.danger : colors.primary} />
+                ) : (
+                  <>
+                    {app.active !== false ? <PowerOff size={18} color={colors.danger} /> : <Power size={18} color={colors.primary} />}
+                    <Text style={[styles.toggleBtnText, app.active !== false ? { color: colors.danger } : { color: colors.primary }]}>
+                      {app.active !== false ? 'DELIST APP' : 'ACTIVATE APP'}
+                    </Text>
+                  </>
+                )}
+              </TouchableOpacity>
 
-            <TouchableOpacity
-              style={[styles.toggleBtn, { flex: 1, backgroundColor: '#FF9500', borderColor: '#FF9500' }]}
-              onPress={() => setBoostModalVisible(true)}
-            >
-              <Activity size={18} color="#fff" />
-              <Text style={[styles.toggleBtnText, { color: '#fff' }]}>
-                BOOST LISTING
-              </Text>
-            </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.toggleBtn, { flex: 1, backgroundColor: '#FF9500', borderColor: '#FF9500' }]}
+                onPress={() => setBoostModalVisible(true)}
+              >
+                <Activity size={18} color="#fff" />
+                <Text style={[styles.toggleBtnText, { color: '#fff' }]}>
+                  BOOST LISTING
+                </Text>
+              </TouchableOpacity>
             </View>
-            
+
             {/* Show convert to production for unlimited apps too */}
             {app.app_type !== 'Production' && !app.expires_at && (
               <TouchableOpacity
@@ -423,116 +500,77 @@ export default function StudioDetail() {
           </View>
         </>
 
-        {/* Active Testers */}
-        <Text style={styles.sectionTitle}>ACTIVE TESTERS ({activeTesters})</Text>
-        <View style={styles.reviewsContainer}>
-          {metrics?.filter((c: any) => c.status === 'active').map((contract: any) => {
-            const progressDays = contract.contract_days?.filter((d: any) => d.status !== 'future').length || 0;
-            return (
-              <View key={contract.id} style={styles.testerCard}>
-                {contract.tester?.avatar_url ? (
-                  <Image source={{ uri: contract.tester.avatar_url }} style={styles.avatarImage} />
-                ) : (
-                  <View style={styles.reviewAvatar}>
-                    <Text style={styles.reviewAvatarText}>
-                      {contract.tester?.name?.substring(0, 2).toUpperCase() || 'TE'}
-                    </Text>
-                  </View>
-                )}
-                <View style={{ flex: 1, marginLeft: 12 }}>
-                  <Text style={styles.reviewName}>{contract.tester?.name || 'Tester'}</Text>
-                  <Text style={styles.reviewDate}>Day {progressDays} of {contract.contract_days?.length || 14} completed</Text>
-                  {contract.rate_proof_url && (
-                    <TouchableOpacity onPress={() => Linking.openURL(contract.rate_proof_url)}>
-                      <Text style={{ color: colors.primary, fontSize: 12, marginTop: 4, fontWeight: '600' }}>View Rating Screenshot</Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
+        {/* App Testers (Testing Phase) */}
+        {testingContracts.length > 0 && (
+          <View style={{ marginTop: 24, marginBottom: 16 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+              <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>APP TESTERS</Text>
+              <View style={styles.segmentRow}>
+                <TouchableOpacity
+                  style={[styles.segmentBtn, testingToggle === 'active' && styles.segmentBtnActive]}
+                  onPress={() => setTestingToggle('active')}
+                >
+                  <Text style={[styles.segmentText, testingToggle === 'active' && styles.segmentTextActive]}>Active</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.segmentBtn, testingToggle === 'done' && styles.segmentBtnActive]}
+                  onPress={() => setTestingToggle('done')}
+                >
+                  <Text style={[styles.segmentText, testingToggle === 'done' && styles.segmentTextActive]}>Completed</Text>
+                </TouchableOpacity>
               </View>
-            );
-          })}
-          {(!metrics || activeTesters === 0) && (
-            <Text style={{ color: colors.textSecondary, fontStyle: 'italic', marginLeft: 8 }}>No active testers currently.</Text>
-          )}
-        </View>
+            </View>
 
-        {/* Tester Feedback */}
-        <Text style={styles.sectionTitle}>TESTER FEEDBACK</Text>
-        <View style={{ marginBottom: 32 }}>
-          {metrics?.filter((c: any) => c.feedback).map((contract: any) => (
-            <View key={`fb-${contract.id}`} style={styles.feedbackCard}>
-              <View style={styles.feedbackHeader}>
-                <Text style={styles.feedbackTesterName}>{contract.tester?.name || 'Tester'}</Text>
-                <View style={{ flexDirection: 'row' }}>
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <Star key={star} size={14} color={star <= contract.feedback.rating ? colors.primary : colors.border} fill={star <= contract.feedback.rating ? colors.primary : "transparent"} />
-                  ))}
-                </View>
-              </View>
-              {contract.feedback.bugs && contract.feedback.bugs.length > 0 && (
-                <View style={styles.feedbackBlock}>
-                  <Text style={styles.feedbackLabel}>BUGS FOUND</Text>
-                  <Text style={styles.feedbackText}>{contract.feedback.bugs}</Text>
-                </View>
-              )}
-              {contract.feedback.general && contract.feedback.general.length > 0 && (
-                <View style={styles.feedbackBlock}>
-                  <Text style={styles.feedbackLabel}>GENERAL FEEDBACK</Text>
-                  <Text style={styles.feedbackText}>{contract.feedback.general}</Text>
-                </View>
+            <View style={styles.reviewsContainer}>
+              {testingContracts.filter((c: any) => getContractVirtualStatus(c) === testingToggle).map((contract: any) => renderTesterCard(contract))}
+              {testingContracts.filter((c: any) => getContractVirtualStatus(c) === testingToggle).length === 0 && (
+                <Text style={{ color: colors.textSecondary, fontStyle: 'italic', marginLeft: 8 }}>
+                  No {testingToggle === 'active' ? 'active testers' : 'completed testers'} currently.
+                </Text>
               )}
             </View>
-          ))}
-          {!metrics?.some((c: any) => c.feedback) && (
-            <View style={styles.emptyFeedback}>
-              <MessageSquare size={24} color={colors.textSecondary} />
-              <Text style={styles.emptyFeedbackText}>No Day 14 feedback submitted yet.</Text>
-            </View>
-          )}
-        </View>
+          </View>
+        )}
 
-        {/* Tester Reviews */}
-        <Text style={styles.sectionTitle}>TESTER REVIEWS ({reviews?.length || 0})</Text>
-        <View style={styles.reviewsContainer}>
-          {reviews?.map((review: any) => {
-            const dateStr = new Date(review.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-            return (
-              <View key={review.id} style={styles.reviewCard}>
-                <View style={styles.reviewHeader}>
-                  {review.reviewer?.avatar_url ? (
-                    <Image source={{ uri: review.reviewer.avatar_url }} style={styles.avatarImage} />
-                  ) : (
-                    <View style={styles.reviewAvatar}>
-                      <Text style={styles.reviewAvatarText}>
-                        {review.reviewer?.name?.substring(0, 2).toUpperCase() || 'TE'}
-                      </Text>
-                    </View>
-                  )}
-                  <Text style={styles.reviewName}>{review.reviewer?.name || 'Tester'}</Text>
-                  <View style={styles.reviewStars}>
-                    {[1, 2, 3, 4, 5].map((i) => (
-                      <Star key={i} size={12} color={i <= review.rating ? colors.warning : colors.border} fill={i <= review.rating ? colors.warning : "transparent"} />
-                    ))}
-                  </View>
-                  <View style={{ flex: 1 }} />
-                  <Text style={styles.reviewDate}>{dateStr}</Text>
-                </View>
-                <Text style={styles.reviewText}>{review.content}</Text>
+        {/* App Users (Production Phase) */}
+        {productionContracts.length > 0 && (
+          <View style={{ marginTop: 24, marginBottom: 16 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+              <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>APP USERS</Text>
+              <View style={styles.segmentRow}>
+                <TouchableOpacity
+                  style={[styles.segmentBtn, productionToggle === 'active' && styles.segmentBtnActive]}
+                  onPress={() => setProductionToggle('active')}
+                >
+                  <Text style={[styles.segmentText, productionToggle === 'active' && styles.segmentTextActive]}>Active</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.segmentBtn, productionToggle === 'done' && styles.segmentBtnActive]}
+                  onPress={() => setProductionToggle('done')}
+                >
+                  <Text style={[styles.segmentText, productionToggle === 'done' && styles.segmentTextActive]}>Completed</Text>
+                </TouchableOpacity>
               </View>
-            );
-          })}
-          {(!reviews || reviews.length === 0) && (
-            <Text style={{ color: colors.textSecondary, fontStyle: 'italic', marginLeft: 8 }}>No reviews yet.</Text>
-          )}
-        </View>
+            </View>
+
+            <View style={styles.reviewsContainer}>
+              {productionContracts.filter((c: any) => getContractVirtualStatus(c) === productionToggle).map((contract: any) => renderTesterCard(contract))}
+              {productionContracts.filter((c: any) => getContractVirtualStatus(c) === productionToggle).length === 0 && (
+                <Text style={{ color: colors.textSecondary, fontStyle: 'italic', marginLeft: 8 }}>
+                  No {productionToggle === 'active' ? 'active users' : 'completed users'} currently.
+                </Text>
+              )}
+            </View>
+          </View>
+        )}
 
       </ScrollView>
 
       {/* Sticky Footer */}
       <View style={[styles.stickyFooter, { paddingBottom: insets.bottom > 0 ? insets.bottom + 16 : 32 }]}>
-        <TouchableOpacity style={styles.exportBtn} onPress={() => showAlert('Coming Soon', 'This feature is currently under development and will be available in a future update.')}>
-          <Download size={18} color={colors.background} />
-          <Text style={styles.exportBtnText}>Export 14-day report</Text>
+        <TouchableOpacity style={styles.exportBtn} onPress={() => setReviewsModalVisible(true)}>
+          <MessageSquare size={18} color={colors.background} />
+          <Text style={styles.exportBtnText}>View Tester Reviews ({reviews?.length || 0})</Text>
         </TouchableOpacity>
       </View>
 
@@ -576,11 +614,11 @@ export default function StudioDetail() {
       {/* Boost Modal */}
       <Modal visible={boostModalVisible} transparent animationType="fade" onRequestClose={() => setBoostModalVisible(false)}>
         <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
+          <View style={[styles.modalCard, { alignItems: 'stretch' }]}>
             <TouchableOpacity style={styles.modalClose} onPress={() => setBoostModalVisible(false)}>
               <X size={20} color={colors.textSecondary} />
             </TouchableOpacity>
-            
+
             <View style={[styles.modalIconCircle, { backgroundColor: 'rgba(255, 149, 0, 0.1)' }]}>
               <Activity size={32} color="#FF9500" />
             </View>
@@ -593,7 +631,7 @@ export default function StudioDetail() {
             <View style={{ width: '100%', backgroundColor: colors.background, borderRadius: 12, padding: 16, marginBottom: 24 }}>
               <Text style={{ color: colors.textSecondary, fontSize: 12, fontWeight: '800', marginBottom: 8, textAlign: 'center' }}>DURATION (DAYS)</Text>
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16 }}>
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={{ backgroundColor: colors.card, width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', opacity: boostDays <= 1 ? 0.5 : 1 }}
                   onPress={() => setBoostDays(Math.max(1, boostDays - 1))}
                   disabled={boostDays <= 1}
@@ -601,7 +639,7 @@ export default function StudioDetail() {
                   <Text style={{ color: colors.text, fontSize: 24, fontWeight: 'bold' }}>-</Text>
                 </TouchableOpacity>
                 <Text style={{ fontSize: 32, fontWeight: 'bold', color: colors.text }}>{boostDays}</Text>
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={{ backgroundColor: colors.card, width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', opacity: boostDays >= (app.expires_at ? Math.max(1, daysRemaining) : 30) ? 0.5 : 1 }}
                   onPress={() => {
                     const maxDays = app.expires_at ? Math.max(1, daysRemaining) : 30;
@@ -622,8 +660,8 @@ export default function StudioDetail() {
               <Text style={{ color: '#FF9500', fontSize: 18, fontWeight: '900' }}>{boostDays * 20} TOKENS</Text>
             </View>
 
-            <TouchableOpacity 
-              style={[styles.modalBtnPrimary, { backgroundColor: '#FF9500' }]} 
+            <TouchableOpacity
+              style={[styles.modalBtnPrimary, { backgroundColor: '#FF9500' }]}
               onPress={handleBoost}
               disabled={isBoosting}
             >
@@ -632,6 +670,135 @@ export default function StudioDetail() {
           </View>
         </View>
       </Modal>
+
+      {/* Upgrade Modal */}
+      <Modal visible={showUpgradeModal} transparent animationType="fade" onRequestClose={() => setShowUpgradeModal(false)}>
+        <View style={styles.modalOverlay}>
+          <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={() => setShowUpgradeModal(false)} />
+          <View style={[styles.modalCard, { alignItems: 'stretch' }]}>
+            <TouchableOpacity style={styles.modalClose} onPress={() => setShowUpgradeModal(false)}>
+              <X size={20} color={colors.textSecondary} />
+            </TouchableOpacity>
+
+            <View style={[styles.modalIconCircle, { backgroundColor: 'rgba(255, 149, 0, 0.1)', alignSelf: 'center', marginTop: 12 }]}>
+              <TrendingUp size={32} color="#FF9500" />
+            </View>
+
+            <Text style={[styles.modalTitle, { textAlign: 'center' }]}>Upgrade Membership</Text>
+            <Text style={[styles.modalDesc, { textAlign: 'center', marginBottom: 32 }]}>
+              You've reached the maximum number of active apps allowed on your current tier. Upgrade to Pro or Pro+ to run multiple app tests simultaneously.
+            </Text>
+
+            <TouchableOpacity
+              style={[styles.modalBtnPrimary, { backgroundColor: colors.primary }]}
+              onPress={() => {
+                setShowUpgradeModal(false);
+                router.push('/pricing');
+              }}
+            >
+              <Text style={styles.modalBtnPrimaryText}>VIEW PLANS</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Reviews Modal */}
+      <Modal visible={reviewsModalVisible} transparent animationType="fade" onRequestClose={() => setReviewsModalVisible(false)}>
+        <View style={[styles.modalOverlay, { padding: 0, justifyContent: 'flex-end' }]}>
+          <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={() => setReviewsModalVisible(false)} />
+          <Animated.View style={[
+            styles.modalCard,
+            {
+              maxHeight: '90%',
+              padding: 0,
+              width: '100%',
+              maxWidth: '100%',
+              alignItems: 'stretch',
+              borderBottomLeftRadius: 0,
+              borderBottomRightRadius: 0,
+              paddingBottom: Math.max(insets.bottom, 24),
+              transform: [{ translateY: slideAnim }]
+            }
+          ]}>
+            <View style={{ padding: 16, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: colors.border, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Text style={styles.modalTitle}>Tester Reviews</Text>
+              <TouchableOpacity onPress={() => setReviewsModalVisible(false)}>
+                <X size={20} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView contentContainerStyle={{ padding: 16 }} showsVerticalScrollIndicator={false}>
+
+              {/* Rating Summary Header */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 32 }}>
+                <View style={{ alignItems: 'center', marginRight: 24 }}>
+                  <Text style={{ fontSize: 48, fontWeight: '900', color: colors.text }}>{avgRating}</Text>
+                  <View style={{ flexDirection: 'row', marginVertical: 4 }}>
+                    {[1, 2, 3, 4, 5].map((i) => (
+                      <Star key={i} size={14} color={i <= Math.round(parseFloat(avgRating)) ? colors.warning : colors.border} fill={i <= Math.round(parseFloat(avgRating)) ? colors.warning : "transparent"} />
+                    ))}
+                  </View>
+                  <Text style={{ fontSize: 12, color: colors.textSecondary, fontWeight: '600' }}>{reviews?.length || 0} REVIEWS</Text>
+                </View>
+
+                {/* Bars */}
+                <View style={{ flex: 1, gap: 6 }}>
+                  {[5, 4, 3, 2, 1].map((star) => {
+                    const count = reviews?.filter((r: any) => r.rating === star).length || 0;
+                    const percent = reviews?.length ? (count / reviews.length) * 100 : 0;
+                    return (
+                      <View key={star} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                        <Text style={{ fontSize: 12, color: colors.textSecondary, width: 10, fontWeight: '600' }}>{star}</Text>
+                        <View style={{ flex: 1, height: 6, backgroundColor: colors.border, borderRadius: 3, overflow: 'hidden' }}>
+                          <View style={{ width: `${percent}%`, height: '100%', backgroundColor: colors.text }} />
+                        </View>
+                      </View>
+                    );
+                  })}
+                </View>
+              </View>
+
+              {reviews?.map((review: any) => {
+                const dateStr = new Date(review.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+                return (
+                  <View key={review.id} style={[styles.reviewCard, { marginBottom: 16 }]}>
+                    <View style={styles.reviewHeader}>
+                      {review.reviewer?.avatar_url ? (
+                        <Image source={{ uri: review.reviewer.avatar_url }} style={styles.avatarImage} />
+                      ) : (
+                        <View style={styles.reviewAvatar}>
+                          <Text style={styles.reviewAvatarText}>
+                            {review.reviewer?.name?.substring(0, 2).toUpperCase() || 'TE'}
+                          </Text>
+                        </View>
+                      )}
+                      <Text style={styles.reviewName}>{review.reviewer?.name || 'Tester'}</Text>
+                      <View style={styles.reviewStars}>
+                        {[1, 2, 3, 4, 5].map((i) => (
+                          <Star key={i} size={12} color={i <= review.rating ? colors.warning : colors.border} fill={i <= review.rating ? colors.warning : "transparent"} />
+                        ))}
+                      </View>
+                      <View style={{ flex: 1 }} />
+                      <Text style={styles.reviewDate}>{dateStr}</Text>
+                    </View>
+                    <Text style={styles.reviewText}>{review.content}</Text>
+                  </View>
+                );
+              })}
+              {(!reviews || reviews.length === 0) && (
+                <View style={{ alignItems: 'center', marginTop: 40, marginBottom: 60 }}>
+                  <MessageSquare size={48} color={colors.border} style={{ marginBottom: 16 }} />
+                  <Text style={{ color: colors.text, fontSize: 18, fontWeight: '700' }}>No reviews yet</Text>
+                  <Text style={{ color: colors.textSecondary, fontSize: 14, textAlign: 'center', marginTop: 8 }}>
+                    Testers will leave reviews after completing their required testing period.
+                  </Text>
+                </View>
+              )}
+              <View style={{ height: 40 }} />
+            </ScrollView>
+          </Animated.View>
+        </View>
+      </Modal>
+
     </View>
   );
 }
@@ -737,7 +904,33 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   toggleBtnText: {
     fontSize: 14,
     fontWeight: '800',
-    fontFamily: 'monospace',
+  },
+  segmentRow: {
+    flexDirection: 'row',
+    backgroundColor: isDark ? '#1C1C1E' : '#E5E5EA',
+    borderRadius: 8,
+    padding: 2,
+  },
+  segmentBtn: {
+    paddingVertical: 4,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+  },
+  segmentBtnActive: {
+    backgroundColor: isDark ? '#2C2C2E' : '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 1,
+    elevation: 2,
+  },
+  segmentText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.textSecondary,
+  },
+  segmentTextActive: {
+    color: colors.text,
   },
   metricsGrid: {
     flexDirection: 'row',
@@ -825,7 +1018,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     color: colors.text,
   },
   reviewsContainer: {
-    gap: 12,
+    gap: 8,
     marginBottom: 12,
   },
   testerCard: {
@@ -875,16 +1068,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     color: colors.text,
     marginRight: 8,
   },
-  testerCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.card,
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
+
   reviewStars: {
     flexDirection: 'row',
     gap: 2,

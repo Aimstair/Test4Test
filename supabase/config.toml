@@ -9,3 +9,14 @@ entrypoint = "./functions/auto-approve/index.ts"
 # Specifies static files to be bundled with the function. Supports glob patterns.
 # For example, if you want to serve static HTML pages in your function:
 # static_files = [ "./functions/auto-approve/*.html" ]
+
+[functions.broadcast-push]
+enabled = true
+verify_jwt = false
+import_map = "./functions/broadcast-push/deno.json"
+# Uncomment to specify a custom file path to the entrypoint.
+# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
+entrypoint = "./functions/broadcast-push/index.ts"
+# Specifies static files to be bundled with the function. Supports glob patterns.
+# For example, if you want to serve static HTML pages in your function:
+# static_files = [ "./functions/broadcast-push/*.html" ]

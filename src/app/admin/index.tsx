@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ChevronLeft, ChevronRight, Users, MessageSquare, AlertTriangle, Activity, Store, ShieldAlert, Gift } from 'lucide-react-native';
+import { ChevronLeft, ChevronRight, Users, MessageSquare, AlertTriangle, Activity, Store, ShieldAlert, Gift, Send } from 'lucide-react-native';
 import { useTheme } from '../../theme/ThemeContext';
 
 export default function AdminDashboard() {
@@ -115,6 +115,19 @@ export default function AdminDashboard() {
             <View style={styles.rowTextCol}>
               <Text style={styles.rowTitle}>Events & Giveaways</Text>
               <Text style={styles.rowSub}>Control active events and view claim logs</Text>
+            </View>
+            <ChevronRight size={16} color="#C7C7CC" />
+          </TouchableOpacity>
+
+          <View style={styles.divider} />
+
+          <TouchableOpacity style={styles.rowCenter} onPress={() => router.push('/admin/broadcast')}>
+            <View style={[styles.iconContainer, { backgroundColor: 'rgba(175, 82, 222, 0.1)' }]}>
+              <Send size={20} color="#AF52DE" />
+            </View>
+            <View style={styles.rowTextCol}>
+              <Text style={styles.rowTitle}>Push Broadcasts</Text>
+              <Text style={styles.rowSub}>Send custom messages to users</Text>
             </View>
             <ChevronRight size={16} color="#C7C7CC" />
           </TouchableOpacity>

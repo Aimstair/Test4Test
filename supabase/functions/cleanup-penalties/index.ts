@@ -66,12 +66,13 @@ Deno.serve(async (_req) => {
 
     // =========================================================================
     // 1. PENALIZE TESTERS (Missed Proofs)
-    // Find contract_days that are 'pending' and date < todayStr
+    // Find contract_days that are 'future' or 'partial' (no proof submitted)
+    // and date < todayStr (the day has passed)
     // =========================================================================
     const { data: pendingDays, error: pError } = await supabase
       .from('contract_days')
       .select('id, contract_id, contracts(tester_id)')
-      .eq('status', 'pending')
+      .in('status', ['future', 'partial'])
       .lt('date', todayStr);
 
     if (pError) throw pError;
