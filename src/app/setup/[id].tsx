@@ -257,7 +257,7 @@ export default function Setup() {
     if (!result.canceled && result.assets[0].base64) {
       setProofUrl(result.assets[0].uri);
       setProofBase64(result.assets[0].base64);
-      handleStepComplete(app?.app_type === 'Production' ? 5 : 4);
+      handleStepComplete(STEP_CHECKIN);
     }
   };
 

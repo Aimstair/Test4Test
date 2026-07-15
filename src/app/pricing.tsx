@@ -1,7 +1,7 @@
 import { useRouter } from 'expo-router';
 import { Check, ChevronLeft, Clock, Coins, Diamond, Flame, Infinity as InfinityIcon, PackageCheck, Smartphone, Star, Users, Zap } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Purchases, { CustomerInfo, PurchasesOffering } from 'react-native-purchases';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../api/auth';
@@ -442,6 +442,17 @@ export default function Pricing() {
             </View>
           </View>
         </View>
+
+        {(userProfile?.subscription_tier === 'Pro' || userProfile?.subscription_tier === 'Pro+') && (
+          <TouchableOpacity
+            style={{ marginTop: 0, alignItems: 'center' }}
+            onPress={() => Linking.openURL('https://play.google.com/store/account/subscriptions')}
+          >
+            <Text style={{ color: colors.textSecondary, fontSize: 14, textDecorationLine: 'underline', fontWeight: '500' }}>
+              Manage Google Play Subscription
+            </Text>
+          </TouchableOpacity>
+        )}
 
         <Text style={[styles.sectionTitle, { marginTop: 16 }]}>TOKEN PACKS</Text>
 

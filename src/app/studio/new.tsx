@@ -6,7 +6,7 @@ import { Check, ChevronLeft, Image as ImageIcon, Coins } from 'lucide-react-nati
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Animated, Modal, Image as RNImage, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useAuth } from '../../api/auth';
-import { useCatalog, useCreateApp, useRenewApp, useUserProfile } from '../../api/queries';
+import { useCatalog, useCreateApp, useRenewApp, useUserProfile, useAdminSettings } from '../../api/queries';
 import { useCustomAlert } from '../../components/AlertProvider';
 import { supabase } from '../../lib/supabase';
 import { useTheme } from '../../theme/ThemeContext';
@@ -35,6 +35,7 @@ export default function NewApp() {
   const isPending = isCreating || isRenewing;
   const { colors, isDark } = useTheme();
   const styles = getStyles(colors, isDark);
+  const { data: adminSettings } = useAdminSettings();
 
   const subscriptionTier = userProfile?.subscription_tier || 'Basic';
 
@@ -55,10 +56,10 @@ export default function NewApp() {
 
   // Dynamic cost calculation
   let displayTesterLimit = appType === 'Production' ? 24 : 12;
-  let displayAppBounty = 5;
+  let displayAppBounty = adminSettings?.default_bounty ?? 10;
   let tokenCost = 80;
-  if (tier === 'Pro') { displayTesterLimit = appType === 'Production' ? 50 : 25; tokenCost = 150; displayAppBounty = 10; }
-  if (tier === 'Pro+') { displayTesterLimit = appType === 'Production' ? 100 : 50; tokenCost = 300; displayAppBounty = 20; }
+  if (tier === 'Pro') { displayTesterLimit = appType === 'Production' ? 50 : 25; tokenCost = 150; }
+  if (tier === 'Pro+') { displayTesterLimit = appType === 'Production' ? 100 : 50; tokenCost = 300; }
   if (subscriptionTier === 'Pro+' || (subscriptionTier === 'Pro' && (tier === 'Basic' || tier === 'Pro'))) {
     tokenCost = 0;
   }
