@@ -2,7 +2,7 @@
   "expo": {
     "name": "Test4Test",
     "slug": "test4test",
-    "version": "1.0.4",
+    "version": "1.0.5",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "app",
@@ -18,7 +18,7 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.aimteralabs.test4test.dev",
+      "package": "com.aimteralabs.test4test",
       "googleServicesFile": "./google-services.json",
       "permissions": []
     },
