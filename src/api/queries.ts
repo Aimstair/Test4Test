@@ -91,14 +91,16 @@ export const useEventClaims = () => {
           user_id,
           users (
             name,
-            email,
             id
           )
         `)
         .order('created_at', { ascending: false })
         .limit(100);
         
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching event_claims:', error);
+        throw error;
+      }
       return data;
     },
   });
@@ -330,7 +332,10 @@ export const useCatalog = () => {
         .from('apps')
         .select(`
           *,
-          contracts(id, status, tester_id),
+          contracts(
+            id, status, tester_id, app_type,
+            contract_days(status, date)
+          ),
           owner:users(name, karma, avatar_url, subscription_tier),
           reviews(rating)
         `)
@@ -850,6 +855,45 @@ export const useRenewApp = () => {
   });
 };
 
+export const useUpgradeAppTier = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ appId, tier, tester_limit, tokenCost, owner_id }: { appId: string, tier: string, tester_limit: number, tokenCost: number, owner_id: string }) => {
+      if (tokenCost > 0) {
+        const { data: user, error: userError } = await supabase.from('users').select('tokens').eq('id', owner_id).single();
+        if (userError) throw userError;
+        if (!user || user.tokens < tokenCost) {
+          throw new Error('Insufficient tokens.');
+        }
+        const { error: deductError } = await supabase.from('users').update({ tokens: user.tokens - tokenCost }).eq('id', owner_id);
+        if (deductError) throw deductError;
+        
+        await supabase.from('transactions').insert([{
+          user_id: owner_id,
+          type: 'token_loss',
+          currency: 'token',
+          amount: -tokenCost,
+          description: `Upgraded app ${appId} to ${tier} tier`
+        }]);
+      }
+
+      const { data, error } = await supabase.from('apps').update({ 
+        tier,
+        tester_limit
+      }).eq('id', appId).select().single();
+      
+      if (error) {
+        throw error;
+      }
+      return data;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['apps'] });
+      queryClient.invalidateQueries({ queryKey: ['user', variables.owner_id] });
+    },
+  });
+};
+
 export const usePurchaseSubscription = () => {
   const queryClient = useQueryClient();
   return useMutation({
@@ -994,7 +1038,7 @@ export const useBoostApp = () => {
       await supabase.functions.invoke('broadcast-push', {
         body: {
           title: '🔥 Hot Opportunity',
-          body: `${data.name} is looking for testers! Claim your spot now for ${data.bounty + 10} tokens.`,
+          body: `${data.name} is looking for testers! Claim your spot now for 20 tokens.`,
           excludeUserId: ownerId
         }
       }).catch(err => console.error('Failed to send broadcast push', err));
@@ -1020,18 +1064,26 @@ export const useStartContract = () => {
         throw new Error('Developers cannot test their own apps.');
       }
 
-      // Prevent duplicate contracts scoped to the CURRENT listing cycle only.
-      // This allows testers to re-join if a developer re-lists for a new round.
-      const { data: existing } = await supabase
+      // Prevent duplicate contracts based on the app_type rules.
+      const { data: existingContracts } = await supabase
         .from('contracts')
-        .select('id')
-        .eq('listing_id', appData?.listing_id ?? appId)
-        .eq('tester_id', testerId)
-        .in('status', ['active', 'completed'])
-        .limit(1);
+        .select('id, status, app_type')
+        .eq('app_id', appId)
+        .eq('tester_id', testerId);
 
-      if (existing && existing.length > 0) {
-        throw new Error('You already tested this app in the current listing cycle.');
+      const hasActive = existingContracts?.some(c => c.status === 'active');
+      if (hasActive) {
+        throw new Error('You already have an active contract for this app.');
+      }
+
+      const hasTesting = existingContracts?.some(c => c.app_type === 'Testing');
+      const hasProduction = existingContracts?.some(c => c.app_type === 'Production');
+
+      if (appData?.app_type === 'Testing' && hasTesting) {
+        throw new Error('You have already tested this app during its Testing phase. Wait for it to be converted to Production.');
+      }
+      if (appData?.app_type === 'Production' && hasProduction) {
+        throw new Error('You have already completed the Production test for this app.');
       }
 
       // Fetch dynamic admin settings for rewards
@@ -1045,7 +1097,7 @@ export const useStartContract = () => {
       // Create contract, storing the listing_id for future scope checks
       const { data: contract, error } = await supabase
         .from('contracts')
-        .insert([{ app_id: appId, tester_id: testerId, bonus_bounty: bonusBounty, rate_proof_url: rateProofUrl, listing_id: appData?.listing_id ?? appId }])
+        .insert([{ app_id: appId, tester_id: testerId, bonus_bounty: bonusBounty, rate_proof_url: rateProofUrl, listing_id: appData?.listing_id ?? appId, app_type: appData?.app_type || 'Testing' }])
         .select()
         .single();
       
@@ -1099,6 +1151,7 @@ export const useStartContract = () => {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['contracts', variables.testerId] });
       queryClient.invalidateQueries({ queryKey: ['user', variables.testerId] });
+      queryClient.invalidateQueries({ queryKey: ['reports', variables.appId] });
     },
   });
 };
@@ -1573,6 +1626,26 @@ export const useAdminDeleteApp = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin_apps'] });
       queryClient.invalidateQueries({ queryKey: ['apps'] });
+    },
+  });
+};
+
+export const useUpdateApp = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ appId, updates }: { appId: string, updates: Partial<{ name: string, blurb: string, icon_url: string, geo_targets: string[] }> }) => {
+      const { data, error } = await supabase
+        .from('apps')
+        .update(updates)
+        .eq('id', appId)
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['apps'] });
+      queryClient.invalidateQueries({ queryKey: ['catalog'] });
     },
   });
 };

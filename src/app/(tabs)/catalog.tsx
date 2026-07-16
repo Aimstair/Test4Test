@@ -52,7 +52,7 @@ export default function Catalog() {
     }
 
     // Check if tester limit is reached
-    const activeTesters = new Set(app.contracts?.filter((c: any) => c.status === 'active').map((c: any) => c.tester_id)).size || 0;
+    const activeTesters = new Set(app.contracts?.filter((c: any) => (c.app_type || 'Testing') === (app.app_type || 'Testing')).map((c: any) => c.tester_id)).size || 0;
     if (activeTesters >= (app.tester_limit || 10)) return false;
 
     return index === self.findIndex((a) => a.id === app.id);

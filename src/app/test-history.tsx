@@ -88,7 +88,8 @@ export default function TestHistory() {
             const app = contract.app;
             if (!app) return null;
             const { doneCount, missedCount, totalDays, completionRate } = getContractStats(contract);
-            const numDays = app.app_type === 'Production' ? 7 : 14;
+            const contractAppType = contract.app_type || 'Testing';
+            const numDays = contract.days?.length || (contractAppType === 'Production' ? 7 : 14);
             const isSuccess = completionRate >= 70;
 
             return (
@@ -102,7 +103,7 @@ export default function TestHistory() {
                   <AppIcon url={app.icon_url} size={48} />
                   <View style={styles.cardInfo}>
                     <Text style={styles.appName} numberOfLines={1}>{app.name}</Text>
-                    <Text style={styles.appType}>{app.app_type || 'Testing'} • {numDays}-DAY CONTRACT</Text>
+                    <Text style={styles.appType}>{contractAppType} • {numDays}-DAY CONTRACT</Text>
                     <Text style={styles.completedDate}>
                       Joined {new Date(contract.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                     </Text>

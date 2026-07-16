@@ -59,12 +59,12 @@ export default function FinalSurvey() {
       return;
     }
     if (!proofImage) {
-      showAlert('Proof Required', 'Please upload your Day 14 screenshot proof.');
+      showAlert('Proof Required', 'Please upload your final screenshot proof.');
       return;
     }
 
     try {
-      const filename = `day14_${contractId}_${Date.now()}.${proofImage.ext}`;
+      const filename = `final_${contractId}_${Date.now()}.${proofImage.ext}`;
       const filePath = `proofs/${filename}`;
 
       const { error } = await supabase.storage
@@ -86,7 +86,7 @@ export default function FinalSurvey() {
         feedback: { rating, bugs, general }
       }, {
         onSuccess: () => {
-          showAlert('Contract Completed!', 'You finished the 14-day test! +1 Karma earned.');
+          showAlert('Contract Completed!', 'You finished the test! +1 Karma earned.');
           router.back();
         },
         onError: (err: any) => showAlert('Error', err.message)
@@ -101,14 +101,14 @@ export default function FinalSurvey() {
       <View style={styles.header}>
         <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
           <ChevronLeft size={24} color={colors.text} />
-          <Text style={styles.backText}>Day 14 Final Survey</Text>
+          <Text style={styles.backText}>Final Survey</Text>
         </TouchableOpacity>
       </View>
 
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: Math.max(insets.bottom + 20, 60) }]}>
         <View style={styles.heroBlock}>
           <Text style={styles.heroTitle}>Congratulations! 🎉</Text>
-          <Text style={styles.heroSub}>You've reached Day 14. Before you claim your final Karma, please leave feedback for the developer.</Text>
+          <Text style={styles.heroSub}>You've reached the final day. Before you claim your final Karma, please leave feedback for the developer.</Text>
         </View>
 
         <Text style={styles.sectionTitle}>1. OVERALL RATING</Text>
@@ -123,7 +123,7 @@ export default function FinalSurvey() {
         <Text style={styles.sectionTitle}>2. BUGS FOUND (OPTIONAL)</Text>
         <TextInput
           style={styles.input}
-          placeholder="Did you encounter any crashes or bugs during the 14 days?"
+          placeholder="Did you encounter any crashes or bugs during the test?"
           placeholderTextColor={colors.textSecondary}
           multiline
           textAlignVertical="top"
@@ -142,7 +142,7 @@ export default function FinalSurvey() {
           onChangeText={setGeneral}
         />
 
-        <Text style={styles.sectionTitle}>4. DAY 14 SCREENSHOT PROOF</Text>
+        <Text style={styles.sectionTitle}>4. FINAL SCREENSHOT PROOF</Text>
         <TouchableOpacity style={styles.imagePlaceholder} onPress={handlePickImage}>
           {proofImage ? (
             <Image source={{ uri: proofImage.uri }} style={styles.proofImage} />

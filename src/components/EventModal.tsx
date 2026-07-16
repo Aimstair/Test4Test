@@ -185,7 +185,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     justifyContent: 'flex-end',
   },
   backdrop: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill as object,
   },
   modalContainer: {
     backgroundColor: colors.card,

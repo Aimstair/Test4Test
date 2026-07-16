@@ -182,8 +182,8 @@ export default function Dashboard() {
     }
   };
 
-  const handleUploadProof = async (contractId: string, dayNumber: number, dayId: string) => {
-    if (dayNumber === 14) {
+  const handleUploadProof = async (contractId: string, dayNumber: number, dayId: string, totalDays: number) => {
+    if (dayNumber === totalDays) {
       router.push(`/testing/survey?contractId=${contractId}&dayId=${dayId}`);
       return;
     }
@@ -394,7 +394,7 @@ export default function Dashboard() {
                   <View style={{ flexDirection: 'row', gap: 8 }}>
                     <TouchableOpacity
                       style={[styles.btnDispute, { flex: 1, backgroundColor: colors.primary }]}
-                      onPress={() => handleUploadProof(contract.id, rejectedDay.day_number, rejectedDay.id)}
+                      onPress={() => handleUploadProof(contract.id, rejectedDay.day_number, rejectedDay.id, contract.apps?.app_type === 'Production' ? 7 : 14)}
                       disabled={isUploading}
                     >
                       <Text style={styles.btnTextWhite}>{isUploading ? 'UPLOADING...' : 'RE-UPLOAD'}</Text>
@@ -457,7 +457,7 @@ export default function Dashboard() {
                     <TouchableOpacity
                       style={[styles.btn, activeAppId === contract.id && timer <= 0 ? styles.btnBlue : styles.btnDisabled]}
                       disabled={isUploading || activeAppId !== contract.id || timer > 0}
-                      onPress={() => handleUploadProof(contract.id, currentDay?.day_number || 1, currentDay?.id)}
+                      onPress={() => handleUploadProof(contract.id, currentDay?.day_number || 1, currentDay?.id, contract.apps?.app_type === 'Production' ? 7 : 14)}
                     >
                       <Camera size={16} color={activeAppId === contract.id && timer <= 0 ? "#fff" : "#8E8E93"} />
                       <Text style={activeAppId === contract.id && timer <= 0 ? styles.btnTextWhite : styles.btnTextDisabled}>

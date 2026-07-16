@@ -149,7 +149,7 @@ export default function HowItWorks() {
 
           <TouchableOpacity
             style={[styles.btn, styles.btnBlack, { marginVertical: 16 }]}
-            onPress={() => Linking.openURL('https://groups.google.com/u/2/g/test4test-community')}
+            onPress={() => Linking.openURL('https://groups.google.com/g/test4test-community')}
           >
             <Text style={styles.btnTextWhite}>OPEN GOOGLE GROUP</Text>
           </TouchableOpacity>

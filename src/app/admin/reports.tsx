@@ -23,12 +23,26 @@ const useAdminReports = () => {
   });
 };
 
-const useDeleteApp = () => {
+const useDelistApp = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (appId: string) => {
-      const { error } = await supabase.from('apps').delete().eq('id', appId);
-      if (error) throw error;
+    mutationFn: async ({ appId, ownerId, appName }: { appId: string, ownerId: string, appName: string }) => {
+      const { error: updateError } = await supabase
+        .from('apps')
+        .update({ active: false })
+        .eq('id', appId);
+      if (updateError) throw updateError;
+      
+      if (ownerId) {
+        const { error: notifyError } = await supabase.from('notifications').insert([{
+          user_id: ownerId,
+          title: 'App Delisted ⚠️',
+          body: `Your app "${appName}" has been delisted due to reports. Please open a support ticket to resolve this issue.`,
+          type: 'system',
+        }]);
+        if (notifyError) console.error('Failed to notify owner:', notifyError);
+      }
+      
       return appId;
     },
     onSuccess: () => {
@@ -42,8 +56,11 @@ const useDeleteReport = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (reportId: string) => {
-      const { error } = await supabase.from('reports').delete().eq('id', reportId);
+      const { data, error } = await supabase.from('reports').delete().eq('id', reportId).select();
       if (error) throw error;
+      if (!data || data.length === 0) {
+        throw new Error('Action failed: Missing database permissions to delete reports. Ask admin to run the SQL fix.');
+      }
       return reportId;
     },
     onSuccess: () => {
@@ -60,16 +77,17 @@ export default function AdminReports() {
   const { showAlert } = useCustomAlert();
 
   const { data: reports, isLoading } = useAdminReports();
-  const { mutate: deleteApp, isPending: isDeletingApp } = useDeleteApp();
+  const { mutate: delistApp, isPending: isDelistingApp } = useDelistApp();
   const { mutate: deleteReport, isPending: isDeletingReport } = useDeleteReport();
 
-  const handleDelistApp = (appId: string, appName: string) => {
-    showAlert('Delist App', `Are you sure you want to permanently delete the app "${appName}"? This action cannot be undone.`, [
+  const handleDelistApp = (appId: string, ownerId: string, appName: string) => {
+    showAlert('Delist App', `Are you sure you want to delist the app "${appName}"? This will make it inactive and notify the owner.`, [
       { text: 'Cancel', style: 'cancel' },
       {
-        text: 'Delete App', style: 'destructive', onPress: () => {
-          deleteApp(appId, {
-            onSuccess: () => showAlert('Success', 'App deleted successfully.')
+        text: 'Delist App', style: 'destructive', onPress: () => {
+          delistApp({ appId, ownerId, appName }, {
+            onSuccess: () => showAlert('Success', 'App delisted successfully.'),
+            onError: (err) => showAlert('Error', err.message)
           });
         }
       }
@@ -82,7 +100,8 @@ export default function AdminReports() {
       {
         text: 'Dismiss', onPress: () => {
           deleteReport(reportId, {
-            onSuccess: () => showAlert('Success', 'Report dismissed.')
+            onSuccess: () => showAlert('Success', 'Report dismissed.'),
+            onError: (err) => showAlert('Error', err.message)
           });
         }
       }
@@ -136,7 +155,7 @@ export default function AdminReports() {
                 <TouchableOpacity
                   style={[styles.actionBtn, { backgroundColor: colors.background, borderColor: colors.border, borderWidth: 1 }]}
                   onPress={() => handleDismissReport(report.id)}
-                  disabled={isDeletingReport || isDeletingApp}
+                  disabled={isDeletingReport || isDelistingApp}
                 >
                   <CheckCircle size={16} color={colors.textSecondary} />
                   <Text style={[styles.actionBtnText, { color: colors.textSecondary }]}>Dismiss</Text>
@@ -144,8 +163,8 @@ export default function AdminReports() {
 
                 <TouchableOpacity
                   style={[styles.actionBtn, { backgroundColor: colors.danger }]}
-                  onPress={() => handleDelistApp(report.app_id, report.app?.name)}
-                  disabled={isDeletingReport || isDeletingApp}
+                  onPress={() => handleDelistApp(report.app_id, report.app?.owner_id, report.app?.name || 'Unknown')}
+                  disabled={isDeletingReport || isDelistingApp}
                 >
                   <ShieldOff size={16} color="#fff" />
                   <Text style={[styles.actionBtnText, { color: '#fff' }]}>Delist App</Text>

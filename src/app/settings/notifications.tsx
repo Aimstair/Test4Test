@@ -28,6 +28,8 @@ export default function NotificationSettings() {
     new_proof: true,
     check_in: true,
     testing_finished: true,
+    support: true,
+    report: true,
   });
 
   useEffect(() => {

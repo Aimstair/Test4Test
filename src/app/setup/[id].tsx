@@ -184,13 +184,16 @@ export default function Setup() {
 
   const handleOpenPlayStore = () => {
     if (app.internal_test_url) {
+      console.log('Redirecting to Play Store URL:', app.internal_test_url);
       Linking.openURL(app.internal_test_url).catch(() => showAlert('Error', 'Could not open url'));
+    } else {
+      console.log('No internal_test_url provided.');
     }
     handleStepComplete(STEP_PLAY_STORE || 1);
   };
 
   const handleJoinGroup = () => {
-    Linking.openURL('https://groups.google.com/u/2/g/test4test-community').catch(() => showAlert('Error', 'Could not open url'));
+    Linking.openURL('https://groups.google.com/g/test4test-community').catch(() => showAlert('Error', 'Could not open url'));
     setHasJoinedGroup(true);
   };
 
@@ -224,7 +227,7 @@ export default function Setup() {
 
   const handleFailModalJoinGroup = () => {
     closeFailModal();
-    Linking.openURL('https://groups.google.com/u/2/g/test4test-community');
+    Linking.openURL('https://groups.google.com/g/test4test-community');
     setActiveStep(1);
     setTimer(60);
   };

@@ -7,7 +7,7 @@ import * as Localization from 'expo-localization';
 import { useRouter } from 'expo-router';
 import { Camera, Check, Coins, Flame, Gift } from 'lucide-react-native';
 import { useState } from 'react';
-import { Linking, Image as RNImage, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, Alert } from 'react-native';
+import { Alert, Linking, Image as RNImage, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../api/auth';
 import { supabase } from '../lib/supabase';
@@ -171,8 +171,8 @@ export default function Onboarding() {
       }
     } catch (error: any) {
       if (
-        error.code === statusCodes.SIGN_IN_CANCELLED || 
-        error.code === 'SIGN_IN_CANCELLED' || 
+        error.code === statusCodes.SIGN_IN_CANCELLED ||
+        error.code === 'SIGN_IN_CANCELLED' ||
         error.code === '12501' ||
         (error.message && error.message.toLowerCase().includes('cancel'))
       ) {
@@ -381,7 +381,7 @@ export default function Onboarding() {
 
       <TouchableOpacity
         style={styles.btnPrimary}
-        onPress={() => Linking.openURL('https://groups.google.com/u/2/g/test4test-community')}
+        onPress={() => Linking.openURL('https://groups.google.com/g/test4test-community')}
       >
         <Text style={styles.btnTextWhite}>OPEN GOOGLE GROUP</Text>
       </TouchableOpacity>

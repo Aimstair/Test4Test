@@ -95,7 +95,7 @@ export default function AdminListings() {
               : null;
             const isExpired = daysRemaining !== null && daysRemaining <= 0;
             const isExpiringSoon = daysRemaining !== null && daysRemaining > 0 && daysRemaining <= 3;
-            const activeTesterCount = (app.contracts || []).filter((c: any) => c.status === 'active').length;
+            const activeTesterCount = (app.contracts || []).filter((c: any) => (c.app_type || 'Testing') === (app.app_type || 'Testing')).length;
 
             const cardBorderColor = app.banned === true ? '#FF3B30' :
               isExpired ? '#FF9500' :

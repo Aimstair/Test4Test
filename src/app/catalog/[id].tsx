@@ -1,7 +1,7 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { AlertTriangle, ChevronLeft, Clock, Coins, Flame, Globe, Send, Smartphone, Star } from 'lucide-react-native';
 import { useState } from 'react';
-import { Image, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Image, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, Linking } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../api/auth';
 import { useCatalog, useContracts, useCreateReview, useReports, useReviews, useUserProfile, useAdminSettings } from '../../api/queries';
@@ -95,7 +95,7 @@ export default function AppDetail() {
     );
   }
 
-  const activeTesters = new Set(app.contracts?.filter((c: any) => c.status === 'active').map((c: any) => c.tester_id)).size || 0;
+  const activeTesters = new Set(app.contracts?.filter((c: any) => (c.app_type || 'Testing') === (app.app_type || 'Testing')).map((c: any) => c.tester_id)).size || 0;
   const capacityPercent = Math.min(100, Math.round((activeTesters / (app.tester_limit || 10)) * 100));
 
   const reportCounts = reports?.reduce((acc: Record<string, number>, curr: any) => {
@@ -112,10 +112,10 @@ export default function AppDetail() {
   const hasReviewed = reviews?.some((r: any) => r.reviewer_id === session?.user?.id) || false;
 
   const isOwner = app.owner_id === session?.user?.id;
-  // Scope to current listing_id so testers can re-join a re-listed app
-  const existingContract = userContracts?.find(
-    (c: any) => c.listing_id === app.listing_id && c.status !== 'rejected' && c.status !== 'failed'
-  );
+  const myContracts = userContracts?.filter((c: any) => c.app_id === app.id && c.status !== 'rejected' && c.status !== 'failed') || [];
+  const activeContract = myContracts.find((c: any) => c.status === 'active');
+  const hasTestingContract = myContracts.some((c: any) => (c.app_type || 'Testing') === 'Testing');
+  const hasProductionContract = myContracts.some((c: any) => (c.app_type || 'Testing') === 'Production');
 
   const handlePostReview = () => {
     if (!content.trim()) return;
@@ -356,11 +356,28 @@ export default function AppDetail() {
             <Text style={[styles.commitBtnTextLeft, { color: colors.textSecondary }]}>Your App</Text>
             <Text style={[styles.commitBtnTextRight, { color: colors.textSecondary }]}>Cannot test your own app</Text>
           </View>
-        ) : existingContract ? (
+        ) : activeContract ? (
           <View style={[styles.commitBtn, { backgroundColor: colors.border }]}>
             <Text style={[styles.commitBtnTextLeft, { color: colors.textSecondary }]}>Testing</Text>
-            <Text style={[styles.commitBtnTextRight, { color: colors.textSecondary }]}>You are already testing this app</Text>
+            <Text style={[styles.commitBtnTextRight, { color: colors.textSecondary }]}>Testing in progress</Text>
           </View>
+        ) : app.app_type === 'Testing' && hasTestingContract ? (
+          <View style={[styles.commitBtn, { backgroundColor: colors.border }]}>
+            <Text style={[styles.commitBtnTextLeft, { color: colors.textSecondary, fontSize: 14 }]}>Already Tested</Text>
+            <Text style={[styles.commitBtnTextRight, { color: colors.textSecondary, fontSize: 12 }]}>Wait for production conversion</Text>
+          </View>
+        ) : app.app_type === 'Production' && hasProductionContract ? (
+          <TouchableOpacity 
+            style={[styles.commitBtn, { backgroundColor: colors.primary }]}
+            onPress={() => {
+              if (app.android_package_name) {
+                Linking.openURL(app.android_package_name.startsWith('http') ? app.android_package_name : `https://play.google.com/store/apps/details?id=${app.android_package_name}`);
+              }
+            }}
+          >
+            <Text style={[styles.commitBtnTextLeft, { color: '#fff' }]}>Already Finished</Text>
+            <Text style={[styles.commitBtnTextRight, { color: '#fff' }]}>Open Play Store</Text>
+          </TouchableOpacity>
         ) : (
           <TouchableOpacity style={styles.commitBtn} onPress={handleStartContract}>
             <Text style={styles.commitBtnTextLeft}>Test this app</Text>

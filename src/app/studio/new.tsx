@@ -55,7 +55,7 @@ export default function NewApp() {
   const [showTokenModal, setShowTokenModal] = useState(false);
 
   // Dynamic cost calculation
-  let displayTesterLimit = appType === 'Production' ? 24 : 12;
+  let displayTesterLimit = appType === 'Production' ? 25 : 12;
   let displayAppBounty = adminSettings?.default_bounty ?? 10;
   let tokenCost = 80;
   if (tier === 'Pro') { displayTesterLimit = appType === 'Production' ? 50 : 25; tokenCost = 150; }
@@ -360,8 +360,8 @@ export default function NewApp() {
             onPress={() => setTier('Basic')}
           >
             <Text style={[styles.tierTitle, tier === 'Basic' && styles.tierTextActive]}>Basic</Text>
-            <Text style={[styles.tierSub, tier === 'Basic' && styles.tierTextActive]}>12 TESTERS</Text>
-            <Text style={[styles.tierSub, tier === 'Basic' && styles.tierTextActive]}>{appType === 'Production' ? '7 DAYS' : subscriptionTier === 'Pro+' ? 'UNLIMITED' : '14 DAYS'}</Text>
+            <Text style={[styles.tierSub, tier === 'Basic' && styles.tierTextActive]}>{appType === 'Production' ? 25 : 12} TESTERS</Text>
+            <Text style={[styles.tierSub, tier === 'Basic' && styles.tierTextActive]}>{appType === 'Production' ? (subscriptionTier === 'Pro+' || subscriptionTier === 'Pro' ? 'UNLIMITED' : '7 DAYS') : subscriptionTier === 'Pro+' ? 'UNLIMITED' : '14 DAYS'}</Text>
             <Text style={[styles.tierSub2, tier === 'Basic' && styles.tierTextActive, subscriptionTier === 'Pro+' || subscriptionTier === 'Pro' ? styles.freeText : {}]}>
               {subscriptionTier === 'Pro+' || subscriptionTier === 'Pro' ? 'Free' : '80 tokens'}
             </Text>
@@ -372,8 +372,8 @@ export default function NewApp() {
             onPress={() => setTier('Pro')}
           >
             <Text style={[styles.tierTitle, tier === 'Pro' && styles.tierTextActive]}>Pro</Text>
-            <Text style={[styles.tierSub, tier === 'Pro' && styles.tierTextActive]}>25 TESTERS</Text>
-            <Text style={[styles.tierSub, tier === 'Pro' && styles.tierTextActive]}>{appType === 'Production' ? '7 DAYS' : subscriptionTier === 'Pro+' ? 'UNLIMITED' : '20 DAYS'}</Text>
+            <Text style={[styles.tierSub, tier === 'Pro' && styles.tierTextActive]}>{appType === 'Production' ? 50 : 25} TESTERS</Text>
+            <Text style={[styles.tierSub, tier === 'Pro' && styles.tierTextActive]}>{appType === 'Production' ? (subscriptionTier === 'Pro+' || subscriptionTier === 'Pro' ? 'UNLIMITED' : '7 DAYS') : subscriptionTier === 'Pro+' ? 'UNLIMITED' : '20 DAYS'}</Text>
             <Text style={[styles.tierSub2, tier === 'Pro' && styles.tierTextActive, subscriptionTier === 'Pro+' || subscriptionTier === 'Pro' ? styles.freeText : {}]}>
               {subscriptionTier === 'Pro+' || subscriptionTier === 'Pro' ? 'Free' : '150 tokens'}
             </Text>
@@ -384,8 +384,8 @@ export default function NewApp() {
             onPress={() => setTier('Pro+')}
           >
             <Text style={[styles.tierTitle, tier === 'Pro+' && styles.tierTextActive]}>Pro+</Text>
-            <Text style={[styles.tierSub, tier === 'Pro+' && styles.tierTextActive]}>50 TESTERS</Text>
-            <Text style={[styles.tierSub, tier === 'Pro+' && styles.tierTextActive]}>{appType === 'Production' ? '7 DAYS' : subscriptionTier === 'Pro+' ? 'UNLIMITED' : '30 DAYS'}</Text>
+            <Text style={[styles.tierSub, tier === 'Pro+' && styles.tierTextActive]}>{appType === 'Production' ? 100 : 50} TESTERS</Text>
+            <Text style={[styles.tierSub, tier === 'Pro+' && styles.tierTextActive]}>{appType === 'Production' ? (subscriptionTier === 'Pro+' || subscriptionTier === 'Pro' ? 'UNLIMITED' : '7 DAYS') : subscriptionTier === 'Pro+' ? 'UNLIMITED' : '30 DAYS'}</Text>
             <Text style={[styles.tierSub2, tier === 'Pro+' && styles.tierTextActive, subscriptionTier === 'Pro+' ? styles.freeText : {}]}>
               {subscriptionTier === 'Pro+' ? 'Free' : '300 tokens'}
             </Text>
