@@ -632,7 +632,7 @@ export default function StudioDetail() {
             )}
 
             {/* Show convert to production for unlimited apps too */}
-            {app.app_type !== 'Production' && !app.expires_at && (
+            {app.app_type !== 'Production' && isUnlimited && (
               <TouchableOpacity
                 style={[styles.toggleBtn, { backgroundColor: '#34C759', borderColor: '#34C759' }]}
                 onPress={() => router.push(`/studio/new?renewAppId=${app.id}&presetAppType=Production`)}

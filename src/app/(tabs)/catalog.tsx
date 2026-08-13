@@ -1,17 +1,17 @@
 import { useRouter } from 'expo-router';
 import { Coins, Flame, Globe, Search, Star } from 'lucide-react-native';
 import { useState } from 'react';
-import { RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, FlatList } from 'react-native';
+import { FlatList, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../api/auth';
-import { useCatalog, useNotifications, useUserProfile, useAdminSettings } from '../../api/queries';
+import { useAdminSettings, useCatalog, useNotifications, useUserProfile } from '../../api/queries';
 import AppHeader from '../../components/AppHeader';
 import AppIcon from '../../components/AppIcon';
 import EmptyState from '../../components/EmptyState';
+import EventFloatingIcon from '../../components/EventFloatingIcon';
+import EventModal from '../../components/EventModal';
 import Skeleton from '../../components/Skeleton';
 import { useTheme } from '../../theme/ThemeContext';
-import EventModal from '../../components/EventModal';
-import EventFloatingIcon from '../../components/EventFloatingIcon';
 
 export default function Catalog() {
   const router = useRouter();

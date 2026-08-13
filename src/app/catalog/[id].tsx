@@ -1,10 +1,10 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { AlertTriangle, ChevronLeft, Clock, Coins, Flame, Globe, Send, Smartphone, Star } from 'lucide-react-native';
 import { useState } from 'react';
-import { Image, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, Linking } from 'react-native';
+import { Image, Linking, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../api/auth';
-import { useCatalog, useContracts, useCreateReview, useReports, useReviews, useUserProfile, useAdminSettings } from '../../api/queries';
+import { useAdminSettings, useCatalog, useContracts, useCreateReview, useReports, useReviews, useUserProfile } from '../../api/queries';
 import { useCustomAlert } from '../../components/AlertProvider';
 import AppIcon from '../../components/AppIcon';
 import Skeleton from '../../components/Skeleton';
@@ -196,9 +196,9 @@ export default function AppDetail() {
           <View style={styles.warningCard}>
             <View style={styles.warningHeader}>
               <AlertTriangle size={16} color={colors.danger} />
-              <Text style={styles.warningTitle}>SAFETY WARNING</Text>
+              <Text style={styles.warningTitle}>APP FLAGGED</Text>
             </View>
-            <Text style={styles.warningDesc}>This app has received {reports.length} report{reports.length > 1 ? 's' : ''} from testers.</Text>
+            <Text style={styles.warningDesc}>{reports.length} tester{reports.length > 1 ? 's' : ''} has reported this app as inaccessible.</Text>
             {Object.entries(reportCounts || {}).map(([title, count]) => (
               <View key={title} style={styles.warningItem}>
                 <View style={styles.warningDot} />
@@ -207,6 +207,7 @@ export default function AppDetail() {
                 </Text>
               </View>
             ))}
+            <Text style={[styles.warningDesc, { marginTop: 4 }]}>Wait a few minutes if you've just joined the google group before testing.</Text>
           </View>
         )}
 
@@ -321,7 +322,7 @@ export default function AppDetail() {
         {reviews?.map((review: any) => (
           <View key={review.id} style={[styles.card, { marginTop: 12 }]}>
             <View style={[styles.feedbackHeaderRow, { justifyContent: 'space-between', marginBottom: 8 }]}>
-              <View style={styles.feedbackHeaderRow}>
+              <View style={[styles.feedbackHeaderRow, { flex: 1 }]}>
                 {review.reviewer?.avatar_url ? (
                   <Image source={{ uri: review.reviewer.avatar_url }} style={styles.avatarImage} />
                 ) : (
@@ -329,8 +330,10 @@ export default function AppDetail() {
                     <Text style={styles.avatarText}>{review.reviewer?.email?.[0]?.toUpperCase() || '?'}</Text>
                   </View>
                 )}
-                <View>
-                  <Text style={styles.reqValue}>{review.reviewer?.email?.split('@')[0] || 'User'}</Text>
+                <View style={{ flex: 1, paddingRight: 8 }}>
+                  <Text style={styles.reqValue} numberOfLines={1} ellipsizeMode="tail">
+                    {review.reviewer?.name || review.reviewer?.email?.split('@')[0] || 'User'}
+                  </Text>
                   <Text style={{ fontSize: 12, color: colors.textSecondary }}>{new Date(review.created_at).toLocaleDateString()}</Text>
                 </View>
               </View>
@@ -367,7 +370,7 @@ export default function AppDetail() {
             <Text style={[styles.commitBtnTextRight, { color: colors.textSecondary, fontSize: 12 }]}>Wait for production conversion</Text>
           </View>
         ) : app.app_type === 'Production' && hasProductionContract ? (
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[styles.commitBtn, { backgroundColor: colors.primary }]}
             onPress={() => {
               if (app.android_package_name) {
