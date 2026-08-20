@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
-import { Activity, BookOpen, Coins, Rocket, Sparkles, TrendingUp, X } from 'lucide-react-native';
+import { Activity, BookOpen, Coins, Gift, Rocket, Sparkles, TrendingUp, X, Zap } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Modal, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -29,6 +29,7 @@ export default function Studio() {
 
   const [refreshing, setRefreshing] = useState(false);
   const [showWelcome, setShowWelcome] = useState(false);
+  const [showFreeTrialModal, setShowFreeTrialModal] = useState(false);
   const [showTokenModal, setShowTokenModal] = useState(false);
   const [showEventModal, setShowEventModal] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
@@ -47,9 +48,24 @@ export default function Studio() {
     });
   }, []);
 
+  // Show free trial CTA once for Basic users who haven't seen it yet
+  useEffect(() => {
+    if (userProfile?.subscription_tier !== 'Basic') return;
+    AsyncStorage.getItem('studio_free_trial_cta_shown').then(seen => {
+      if (!seen) {
+        setShowFreeTrialModal(true);
+      }
+    });
+  }, [userProfile?.subscription_tier]);
+
   const dismissWelcome = () => {
     setShowWelcome(false);
     AsyncStorage.setItem('studio_first_visit', 'true');
+  };
+
+  const dismissFreeTrialModal = () => {
+    setShowFreeTrialModal(false);
+    AsyncStorage.setItem('studio_free_trial_cta_shown', 'true');
   };
 
   const onRefresh = async () => {
@@ -564,6 +580,91 @@ export default function Studio() {
             </View>
           </View>
         </Modal>
+
+        {/* Free Trial CTA Modal — shown once to Basic users */}
+        <Modal visible={showFreeTrialModal} transparent animationType="fade" onRequestClose={dismissFreeTrialModal}>
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalCard, { alignItems: 'stretch' }]}>
+              <TouchableOpacity style={styles.modalClose} onPress={dismissFreeTrialModal}>
+                <X size={20} color={colors.textSecondary} />
+              </TouchableOpacity>
+
+              {/* Icon + gradient header */}
+              <View style={{ alignItems: 'center', marginBottom: 20, marginTop: 4 }}>
+                <View style={[styles.modalIconCircle, {
+                  backgroundColor: isDark ? 'rgba(10, 132, 255, 0.15)' : 'rgba(10, 132, 255, 0.1)',
+                  width: 72,
+                  height: 72,
+                  borderRadius: 36,
+                }]}>
+                  <Gift size={36} color={colors.primary} />
+                </View>
+
+                {/* FREE TRIAL badge */}
+                <View style={{
+                  backgroundColor: colors.primary,
+                  borderRadius: 20,
+                  paddingHorizontal: 14,
+                  paddingVertical: 4,
+                  marginTop: -10,
+                  shadowColor: colors.primary,
+                  shadowOffset: { width: 0, height: 4 },
+                  shadowOpacity: 0.4,
+                  shadowRadius: 8,
+                  elevation: 4,
+                }}>
+                  <Text style={{ color: '#fff', fontSize: 11, fontWeight: '900', letterSpacing: 1.5 }}>FREE TRIAL</Text>
+                </View>
+              </View>
+
+              <Text style={[styles.modalTitle, { textAlign: 'center', fontSize: 22 }]}>List Your App for Free</Text>
+              <Text style={[styles.modalBody, { fontSize: 15, marginBottom: 20 }]}>
+                Start a <Text style={{ color: colors.primary, fontWeight: '800' }}>Pro free trial</Text> and list your first app with zero tokens — no payment required upfront.
+              </Text>
+
+              {/* Benefit rows */}
+              <View style={styles.freeTrialBenefitsCard}>
+                {[
+                  { icon: <Zap size={15} color={colors.primary} />, text: 'List your app instantly — no tokens needed' },
+                  { icon: <Sparkles size={15} color="#FF9500" />, text: 'Up to 5 live app listings with Pro' },
+                  { icon: <TrendingUp size={15} color={colors.success} />, text: 'Unlimited listing duration (non-production)' },
+                ].map((item, i) => (
+                  <View key={i} style={[styles.freeTrialBenefitRow, i > 0 && { borderTopWidth: 1, borderTopColor: colors.border }]}>
+                    <View style={{ marginRight: 10, marginTop: 1 }}>{item.icon}</View>
+                    <Text style={styles.freeTrialBenefitText}>{item.text}</Text>
+                  </View>
+                ))}
+              </View>
+
+              {/* Primary CTA */}
+              <TouchableOpacity
+                style={[styles.modalBtnPrimary, {
+                  backgroundColor: colors.primary,
+                  shadowColor: colors.primary,
+                  shadowOffset: { width: 0, height: 4 },
+                  shadowOpacity: 0.35,
+                  shadowRadius: 10,
+                  elevation: 6,
+                  marginBottom: 10,
+                }]}
+                onPress={() => {
+                  dismissFreeTrialModal();
+                  router.push('/pricing');
+                }}
+              >
+                <Text style={styles.modalBtnPrimaryText}>START FREE TRIAL</Text>
+              </TouchableOpacity>
+
+              {/* Secondary dismiss */}
+              <TouchableOpacity
+                style={{ alignItems: 'center', paddingVertical: 10 }}
+                onPress={dismissFreeTrialModal}
+              >
+                <Text style={{ color: colors.textSecondary, fontSize: 14, fontWeight: '600' }}>Maybe later</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
       </ScrollView>
 
       <EventFloatingIcon onPress={() => setShowEventModal(true)} />
@@ -869,6 +970,27 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   proTipBody: {
     fontSize: 14,
     color: colors.textSecondary,
+    lineHeight: 20,
+  },
+  freeTrialBenefitsCard: {
+    backgroundColor: isDark ? colors.background : '#F5F7FF',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginBottom: 20,
+    overflow: 'hidden',
+  },
+  freeTrialBenefitRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingVertical: 11,
+    paddingHorizontal: 14,
+  },
+  freeTrialBenefitText: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.text,
     lineHeight: 20,
   },
 });

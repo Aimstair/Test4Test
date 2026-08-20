@@ -761,12 +761,20 @@ export const useCreateApp = () => {
       // Generate a unique listing_id for this new listing cycle
       const listing_id = `${appData.owner_id}_${Date.now()}`;
 
+      // If the listing is free (no token cost) and the user has an active Pro/Pro+
+      // subscription, lock this listing to the subscription so it expires
+      // automatically when the subscription runs out.
+      const isSubscriptionFree =
+        tokenCost === 0 &&
+        (subscriptionTier === 'Pro' || subscriptionTier === 'Pro+');
+
       // Insert app
       const { data, error } = await supabase.from('apps').insert([{ 
         ...appData, 
         active: true,
         expires_at: expiresAtStr,
         listing_id,
+        subscription_locked: isSubscriptionFree,
       }]).select().single();
       
       if (error) {

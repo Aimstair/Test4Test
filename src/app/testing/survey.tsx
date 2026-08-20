@@ -40,7 +40,11 @@ export default function FinalSurvey() {
       if (exif && (exif.DateTimeOriginal || exif.DateTime)) {
          const dateStr = exif.DateTimeOriginal || exif.DateTime;
          const imgDate = dateStr.substring(0, 10).replace(/:/g, '-');
-         const todayDate = new Date().toISOString().substring(0, 10);
+
+         // Use LOCAL date (not UTC) so users in non-UTC timezones (e.g. Manila UTC+8)
+         // aren't incorrectly rejected when submitting after local midnight but before UTC midnight.
+         const now = new Date();
+         const todayDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
          
          if (dateStr.includes(':') && imgDate !== todayDate) {
             showAlert('Invalid Proof', 'This screenshot was not taken today. Please take a fresh screenshot.');
