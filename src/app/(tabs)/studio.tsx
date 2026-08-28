@@ -600,7 +600,7 @@ export default function Studio() {
                   <Gift size={36} color={colors.primary} />
                 </View>
 
-                {/* FREE TRIAL badge */}
+                {/* PROMO badge */}
                 <View style={{
                   backgroundColor: colors.primary,
                   borderRadius: 20,
@@ -613,13 +613,13 @@ export default function Studio() {
                   shadowRadius: 8,
                   elevation: 4,
                 }}>
-                  <Text style={{ color: '#fff', fontSize: 11, fontWeight: '900', letterSpacing: 1.5 }}>FREE TRIAL</Text>
+                  <Text style={{ color: '#fff', fontSize: 11, fontWeight: '900', letterSpacing: 1.5 }}>HALF PRICE</Text>
                 </View>
               </View>
 
-              <Text style={[styles.modalTitle, { textAlign: 'center', fontSize: 22 }]}>List Your App for Free</Text>
+              <Text style={[styles.modalTitle, { textAlign: 'center', fontSize: 22 }]}>Pro Weekly Plan</Text>
               <Text style={[styles.modalBody, { fontSize: 15, marginBottom: 20 }]}>
-                Start a <Text style={{ color: colors.primary, fontWeight: '800' }}>Pro free trial</Text> and list your first app with zero tokens — no payment required upfront.
+                Subscribe to our <Text style={{ color: colors.primary, fontWeight: '800' }}>Weekly Pro plan</Text> for half the price of a monthly subscription and publish your apps instantly!
               </Text>
 
               {/* Benefit rows */}
@@ -652,7 +652,7 @@ export default function Studio() {
                   router.push('/pricing');
                 }}
               >
-                <Text style={styles.modalBtnPrimaryText}>START FREE TRIAL</Text>
+                <Text style={styles.modalBtnPrimaryText}>VIEW PRICING</Text>
               </TouchableOpacity>
 
               {/* Secondary dismiss */}

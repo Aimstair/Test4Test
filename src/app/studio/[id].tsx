@@ -228,10 +228,15 @@ export default function StudioDetail() {
 
   const getTierCost = (tierLevel: string, subTier: string) => {
     if (subTier === 'Pro+') return 0;
-    if (subTier === 'Pro' && (tierLevel === 'Basic' || tierLevel === 'Pro')) return 0;
-    if (tierLevel === 'Pro+') return 300;
-    if (tierLevel === 'Pro') return 150;
-    return 80;
+    
+    let baseCost = 80;
+    if (tierLevel === 'Pro+') baseCost = 300;
+    else if (tierLevel === 'Pro') baseCost = 150;
+
+    if (subTier === 'Pro' && (tierLevel === 'Basic' || tierLevel === 'Pro')) {
+      return Math.floor(baseCost / 2);
+    }
+    return baseCost;
   };
 
   const handleUpgradeTier = () => {

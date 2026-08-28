@@ -60,8 +60,10 @@ export default function NewApp() {
   let tokenCost = 80;
   if (tier === 'Pro') { displayTesterLimit = appType === 'Production' ? 50 : 25; tokenCost = 150; }
   if (tier === 'Pro+') { displayTesterLimit = appType === 'Production' ? 100 : 50; tokenCost = 300; }
-  if (subscriptionTier === 'Pro+' || (subscriptionTier === 'Pro' && (tier === 'Basic' || tier === 'Pro'))) {
+  if (subscriptionTier === 'Pro+') {
     tokenCost = 0;
+  } else if (subscriptionTier === 'Pro' && (tier === 'Basic' || tier === 'Pro')) {
+    tokenCost = Math.floor(tokenCost / 2);
   }
 
   // Active apps limits

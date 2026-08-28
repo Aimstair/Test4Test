@@ -11,7 +11,7 @@ import { useTheme } from '../theme/ThemeContext';
 
 export default function Pricing() {
   const router = useRouter();
-  const [billing, setBilling] = useState<'monthly' | 'yearly'>('monthly');
+  const [billing, setBilling] = useState<'weekly' | 'monthly'>('weekly');
   const insets = useSafeAreaInsets();
   const { colors, isDark } = useTheme();
   const styles = getStyles(colors, isDark);
@@ -153,6 +153,21 @@ export default function Pricing() {
     return rcInitializing || isPending || currentTier === tier;
   };
 
+  const getDynamicPrice = (tier: 'Pro' | 'Pro+') => {
+    const isProPlus = tier === 'Pro+';
+    const rcPackageId = isProPlus
+      ? (billing === 'monthly' ? 'test4test_pro_plus_monthly' : 'test4test_pro_plus_weekly')
+      : (billing === 'monthly' ? 'test4test_pro_monthly' : 'test4test_pro_weekly');
+
+    const fallback = isProPlus
+      ? (billing === 'monthly' ? '$10' : '$5')
+      : (billing === 'monthly' ? '$3.99' : '$2.49');
+
+    if (!offerings) return fallback;
+    const pkg = offerings.availablePackages.find(p => p.identifier === rcPackageId);
+    return pkg ? pkg.product.priceString : fallback;
+  };
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -184,17 +199,17 @@ export default function Pricing() {
 
           <View style={styles.toggleContainer}>
             <TouchableOpacity
+              style={[styles.toggleBtn, billing === 'weekly' && styles.toggleBtnActive]}
+              onPress={() => setBilling('weekly')}
+            >
+              <Text style={[styles.toggleText, billing === 'weekly' && styles.toggleTextActive]}>Weekly</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
               style={[styles.toggleBtn, billing === 'monthly' && styles.toggleBtnActive]}
               onPress={() => setBilling('monthly')}
             >
-              <Text style={[styles.toggleText, billing === 'monthly' && styles.toggleTextActive]}>Monthly</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.toggleBtn, billing === 'yearly' && styles.toggleBtnActive]}
-              onPress={() => setBilling('yearly')}
-            >
-              <Text style={[styles.toggleText, billing === 'yearly' && styles.toggleTextActive]}>
-                Yearly <Text style={{ color: '#34C759', fontSize: 10, fontWeight: '800' }}>-20%</Text>
+              <Text style={[styles.toggleText, billing === 'monthly' && styles.toggleTextActive]}>
+                Monthly <Text style={{ color: '#34C759', fontSize: 10, fontWeight: '800' }}>-50%</Text>
               </Text>
             </TouchableOpacity>
           </View>
@@ -246,8 +261,8 @@ export default function Pricing() {
               <Text style={styles.tierSub}>For active developers</Text>
             </View>
             <Text style={styles.tierPrice}>
-              {billing === 'monthly' ? '$5' : '$48'}
-              <Text style={styles.priceMo}>{billing === 'monthly' ? '/mo' : '/yr'}</Text>
+              {getDynamicPrice('Pro')}
+              <Text style={styles.priceMo}>{billing === 'monthly' ? '/mo' : '/wk'}</Text>
             </Text>
           </View>
 
@@ -264,7 +279,7 @@ export default function Pricing() {
             </View>
             <View style={styles.featureItem}>
               <Check size={14} color={colors.primary} />
-              <Text style={styles.featureText}>Free Pro Listing</Text>
+              <Text style={styles.featureText}>50% Off Listing Price</Text>
             </View>
             <View style={styles.featureItem}>
               <Check size={14} color={colors.primary} />
@@ -282,7 +297,7 @@ export default function Pricing() {
 
           <TouchableOpacity
             style={[styles.btnBlack, isTierDisabled('Pro') && { opacity: 0.6 }]}
-            onPress={() => handlePurchase('Pro', billing === 'monthly' ? 'test4test_pro_monthly' : 'test4test_pro_yearly')}
+            onPress={() => handlePurchase('Pro', billing === 'monthly' ? 'test4test_pro_monthly' : 'test4test_pro_weekly')}
             disabled={isTierDisabled('Pro')}
           >
             <Text style={styles.btnTextWhite}>
@@ -298,8 +313,8 @@ export default function Pricing() {
               <Text style={styles.tierSub}>For studios and teams</Text>
             </View>
             <Text style={styles.tierPrice}>
-              {billing === 'monthly' ? '$15' : '$144'}
-              <Text style={styles.priceMo}>{billing === 'monthly' ? '/mo' : '/yr'}</Text>
+              {getDynamicPrice('Pro+')}
+              <Text style={styles.priceMo}>{billing === 'monthly' ? '/mo' : '/wk'}</Text>
             </Text>
           </View>
 
@@ -334,7 +349,7 @@ export default function Pricing() {
 
           <TouchableOpacity
             style={[styles.btnBlack, isTierDisabled('Pro+') && { opacity: 0.6 }]}
-            onPress={() => handlePurchase('Pro+', billing === 'monthly' ? 'test4test_pro_plus_monthly' : 'test4test_pro_plus_yearly')}
+            onPress={() => handlePurchase('Pro+', billing === 'monthly' ? 'test4test_pro_plus_monthly' : 'test4test_pro_plus_weekly')}
             disabled={isTierDisabled('Pro+')}
           >
             <Text style={styles.btnTextWhite}>
@@ -400,7 +415,9 @@ export default function Pricing() {
               <Text style={styles.tableCell}>
                 <Coins size={10} color="#eab308" /> 80
               </Text>
-              <Text style={styles.tableCell}>Free</Text>
+              <Text style={styles.tableCell}>
+                <Coins size={10} color="#eab308" /> 40
+              </Text>
               <Text style={styles.tableCell}>Free</Text>
             </View>
             <View style={styles.tableRow}>
@@ -411,7 +428,9 @@ export default function Pricing() {
               <Text style={styles.tableCell}>
                 <Coins size={10} color="#eab308" /> 150
               </Text>
-              <Text style={styles.tableCell}>Free</Text>
+              <Text style={styles.tableCell}>
+                <Coins size={10} color="#eab308" /> 75
+              </Text>
               <Text style={styles.tableCell}>Free</Text>
             </View>
             <View style={styles.tableRow}>
